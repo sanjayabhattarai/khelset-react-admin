@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../api/firebase';
 // Import the specific scoring interface for cricket that we will use
-import { CricketScoringInterface } from '../features/scoring/CricketScoringInterface';
+import { CricketScoringInterface } from '../features/scoring/cricket/CricketScoringInterface';
 
 // Define the props that this page will receive from its parent (ManageEventPage).
 interface LiveScoringPageProps {
