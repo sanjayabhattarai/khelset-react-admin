@@ -1,6 +1,5 @@
 // src/features/scoring/cricket/services/firestoreService.ts
 // This file centralizes all interactions with the Firestore database for the scoring feature.
-// It makes the rest of the code cleaner and separates concerns.
 
 import {
   doc,
@@ -26,32 +25,27 @@ export const subscribeToMatch = (
   onUpdate: (data: MatchData) => void
 ) => {
   const matchDocRef = doc(db, 'matches', matchId);
-  // onSnapshot creates a real-time listener.
   const unsubscribe = onSnapshot(matchDocRef, (docSnapshot) => {
     if (docSnapshot.exists()) {
-      // When data is received, call the provided callback function.
       onUpdate(docSnapshot.data() as MatchData);
     } else {
       console.error(`Match with ID ${matchId} not found.`);
     }
   });
-  // Return the function that will stop the listener when the component unmounts.
   return unsubscribe;
 };
 
 /**
  * Updates a match document in Firestore with the provided data.
  * @param matchId The ID of the match to update.
- * @param data An object containing the fields to update. Can be a partial object.
+ * @param data An object containing the fields to update.
  */
-export const updateMatch = async (matchId: string, data: Partial<MatchData>) => {
+export const updateMatch = async (matchId: string, data: { [key: string]: any }) => {
   const matchDocRef = doc(db, 'matches', matchId);
   try {
-    // updateDoc is used to update specific fields without overwriting the entire document.
     await updateDoc(matchDocRef, data);
   } catch (error) {
     console.error("Error updating match document:", error);
-    // Optionally, re-throw the error or handle it as needed in the UI.
     throw error;
   }
 };
@@ -65,7 +59,6 @@ export const getTeamPlayerIds = async (teamId: string): Promise<string[]> => {
   if (!teamId) return [];
   const teamDocRef = doc(db, 'teams', teamId);
   const teamDoc = await getDoc(teamDocRef);
-  // Safely access the 'players' array, returning an empty array if it doesn't exist.
   return teamDoc.exists() ? (teamDoc.data().players as string[]) : [];
 };
 
@@ -76,7 +69,6 @@ export const getTeamPlayerIds = async (teamId: string): Promise<string[]> => {
  */
 export const getPlayerDocs = async (ids: string[]): Promise<Player[]> => {
   if (!ids || ids.length === 0) return [];
-  // Firestore 'in' queries are limited to 30 items. For larger teams, this might need batching.
   const playersQuery = query(collection(db, 'players'), where('__name__', 'in', ids));
   const snapshot = await getDocs(playersQuery);
   return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Player));

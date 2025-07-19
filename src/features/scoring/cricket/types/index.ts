@@ -1,6 +1,6 @@
 // src/features/scoring/cricket/types/index.ts
 // This file contains all the shared TypeScript interfaces for the scoring feature.
-// It has been updated to support customizable match rules.
+// It acts as the single source of truth for all data shapes.
 
 /**
  * Represents a single player's basic information.
@@ -44,7 +44,7 @@ export interface Bowler {
 }
 
 /**
- * A detailed model for a single delivery, used for logging and the "undo" feature.
+ * A detailed model for a single delivery, used for logging and commentary.
  */
 export interface Delivery {
   ballId: string;
@@ -79,17 +79,18 @@ export interface Innings {
   ballsInOver: number;
   battingStats: Batsman[];
   bowlingStats: Bowler[];
-  deliveryHistory: string[];
+  deliveryHistory: Delivery[];
+  undoStack: string[];
 }
 
 /**
- * ✨ NEW: Defines the structure for customizable match rules.
+ * Defines the structure for customizable match rules.
  */
 export interface MatchRules {
     totalOvers: number;
     playersPerTeam: number;
     maxOversPerBowler: number;
-    customRulesText: string; // For the open description box
+    customRulesText: string;
 }
 
 /**
@@ -107,7 +108,6 @@ export interface MatchData {
   isFreeHit: boolean;
   tossWinnerId: string | null;
   tossDecision: 'bat' | 'bowl' | null;
-  // ✨ NEW: The rules object is now part of the match data.
   rules: MatchRules;
   innings1: Innings;
   innings2: Innings;

@@ -1,8 +1,7 @@
 // src/features/scoring/cricket/logic/dismissalUtils.ts
-// This file contains the "pure" logic for processing a wicket dismissal.
-// It updates the stats for the batsman and bowler based on the type of wicket.
+// This file has been updated to correctly handle the "Free Hit" rule for wickets.
 
-import { MatchData, WicketType, Innings, Batsman, Bowler } from '../types';
+import { MatchData, WicketType, Innings } from '../types';
 
 /**
  * Processes a wicket dismissal and updates the state of the match accordingly.
@@ -23,22 +22,40 @@ export const processWicket = (
   const inningsKey = `innings${updatedData.currentInnings}` as const;
   const innings: Innings = updatedData[inningsKey];
   const currentBowlerId = updatedData.currentBowlerId;
+  const isFreeHit = updatedData.isFreeHit; // Get the free hit status from the match data.
 
-  // --- 1. Update Batting Stats ---
+  // --- 1. Check if the Wicket is Valid ---
+  // A wicket does not count on a free hit, unless it is a run-out.
+  const isWicketValid = !isFreeHit || wicketType === 'run_out';
+
+  if (!isWicketValid) {
+    // If the wicket is not valid (e.g., bowled on a free hit), we simply return
+    // the original data without making any changes to the score or stats.
+    console.log("Wicket occurred on a free hit, but was not a run-out. Dismissal ignored.");
+    return currentMatchData;
+  }
+
+  // --- 2. Update Batting Stats ---
   // Find the batsman who got out and update their status and dismissal details.
   const batsmanIndex = innings.battingStats.findIndex(p => p.id === dismissedBatsmanId);
   if (batsmanIndex !== -1) {
     innings.battingStats[batsmanIndex].status = 'out';
-    innings.battingStats[batsmanIndex].dismissal = {
+    
+    const dismissalInfo: { type: WicketType; bowlerId: string; fielderId?: string } = {
       type: wicketType,
       bowlerId: currentBowlerId!,
-      ...(fielderId && { fielderId }), // Only add fielderId if it exists
     };
+    if (fielderId) {
+      dismissalInfo.fielderId = fielderId;
+    }
+    innings.battingStats[batsmanIndex].dismissal = dismissalInfo;
   }
 
-  // --- 2. Update Bowling Stats ---
+  // --- 3. Update Bowling Stats ---
   // A wicket is not credited to the bowler for a run out.
-  const isBowlerWicket = wicketType !== 'run_out';
+  // We also explicitly check isWicketValid again here to make it clear that dismissals
+  // like 'bowled' on a free hit do not count for the bowler.
+  const isBowlerWicket = wicketType !== 'run_out' && isWicketValid;
   if (isBowlerWicket && currentBowlerId) {
     const bowlerIndex = innings.bowlingStats.findIndex(b => b.id === currentBowlerId);
     if (bowlerIndex !== -1) {
@@ -46,11 +63,12 @@ export const processWicket = (
     }
   }
 
-  // --- 3. Update Innings Wicket Count ---
+  // --- 4. Update Innings Wicket Count ---
+  // This line only runs for valid wickets due to the early return in the `isWicketValid` check above.
   innings.wickets += 1;
 
-  // --- 4. Clear the on-strike batsman ---
-  // The new batsman will be selected by the UI and will replace this null value.
+  // --- 5. Clear the dismissed batsman from their current position ---
+  // The UI will then prompt for a new batsman to replace them.
   if (updatedData.onStrikeBatsmanId === dismissedBatsmanId) {
     updatedData.onStrikeBatsmanId = null; 
   } else if (updatedData.nonStrikeBatsmanId === dismissedBatsmanId) {
