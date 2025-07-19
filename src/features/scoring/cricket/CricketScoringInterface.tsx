@@ -1,16 +1,22 @@
 // src/features/scoring/cricket/CricketScoringInterface.tsx
-// This is the main orchestrator component, updated to handle the end of an innings
-// based on the custom match rules.
+// This is the main orchestrator component for the scoring feature.
+// This version contains the final, corrected logic for UI state, wicket logging, and over management.
 
 import { useState, useEffect, useCallback } from 'react';
 import { arrayUnion } from 'firebase/firestore';
-import { updateMatch } from './services/firestoreService';
+import { v4 as uuidv4 } from 'uuid'; // Import uuid to generate unique IDs for deliveries
+
+// --- Hooks & Services ---
 import { useMatchData } from './hooks/useMatchData';
+import { updateMatch } from './services/firestoreService';
+
+// --- Logic Utilities ---
 import { processDelivery } from './logic/scoringUtils';
 import { processWicket } from './logic/dismissalUtils';
 import { processEndOfOver } from './logic/overUtils';
+import { revertToPreviousState } from './logic/undoUtils';
 
-// Import all the UI components.
+// --- UI Components ---
 import { TossSelector } from './components/TossSelector';
 import { TeamPlayerSelector } from './components/TeamPlayerSelector';
 import { NextBatsmanSelector } from './components/NextBatsmanSelector';
@@ -20,7 +26,9 @@ import { ScoringPanel } from './components/ScoringPanel';
 import { MatchHeader } from './components/MatchHeader';
 import { InningsBreakScreen } from './components/InningsBreakScreen';
 import { MatchSummary } from './components/MatchSummary';
-import { WicketType } from './types';
+
+// --- Types ---
+import { WicketType, Delivery, ExtraType } from './types';
 
 interface CricketScoringProps {
   matchId: string;
@@ -38,7 +46,6 @@ export function CricketScoringInterface({ matchId }: CricketScoringProps) {
     onStrikeBatsman,
     nonStrikeBatsman,
     currentBowler,
-    battingTeamPlayers,
     bowlingTeamPlayers,
     availableBatsmen,
   } = useMatchData(matchId);
@@ -52,28 +59,27 @@ export function CricketScoringInterface({ matchId }: CricketScoringProps) {
     if (loading || !matchData) return;
     const isIdle = uiState === 'scoring' || uiState === 'waiting_for_toss' || uiState === 'innings_break' || uiState === 'match_over';
     if (isIdle) {
-      if (matchData.status === 'Completed') setUiState('match_over');
-      else if (matchData.status === 'Innings Break') setUiState('innings_break');
-      else if (!matchData.tossWinnerId) setUiState('waiting_for_toss');
-      else if (!matchData.onStrikeBatsmanId || !matchData.currentBowlerId) setUiState('selecting_opening_players');
-      else setUiState('scoring');
+        if (matchData.status === 'Completed') setUiState('match_over');
+        else if (matchData.status === 'Innings Break') setUiState('innings_break');
+        else if (!matchData.tossWinnerId) setUiState('waiting_for_toss');
+        else if (!matchData.onStrikeBatsmanId || !matchData.currentBowlerId) setUiState('selecting_opening_players');
+        else setUiState('scoring');
     }
   }, [matchData, loading, uiState]);
 
-  // --- CORE LOGIC HANDLERS ---
 
+  // --- CORE LOGIC HANDLERS ---
   const handleTossComplete = useCallback(async (tossWinnerId: string, tossDecision: 'bat' | 'bowl') => {
     if (!matchData) return;
     const tossLoserId = tossWinnerId === matchData.teamA_id ? matchData.teamB_id : matchData.teamA_id;
     const battingTeamId = tossDecision === 'bat' ? tossWinnerId : tossLoserId;
     const bowlingTeamId = tossDecision === 'bowl' ? tossWinnerId : tossLoserId;
-    const updatePayload: { [key: string]: any } = {
+    const updatePayload = {
         tossWinnerId, tossDecision,
         'innings1.battingTeamId': battingTeamId, 'innings1.bowlingTeamId': bowlingTeamId,
         'innings2.battingTeamId': bowlingTeamId, 'innings2.bowlingTeamId': battingTeamId,
     };
     await updateMatch(matchId, updatePayload);
-    setUiState('selecting_opening_players');
   }, [matchData, matchId]);
 
   const handlePlayerSelectionComplete = useCallback(async (selection: { onStrikeBatsmanId: string; nonStrikeBatsmanId: string; currentBowlerId: string; }) => {
@@ -87,7 +93,7 @@ export function CricketScoringInterface({ matchId }: CricketScoringProps) {
         { id: nonStrikeBatsmanId, name: getPlayerName(nonStrikeBatsmanId), runs: 0, balls: 0, status: 'not_out' as const },
     ];
     const initialBowlingStats = [{ id: currentBowlerId, name: getPlayerName(currentBowlerId), overs: 0, runs: 0, wickets: 0 }];
-    const updatePayload: { [key: string]: any } = { 
+    const updatePayload = { 
       ...selection, status: 'Live' as const,
       [`${inningsKey}.battingStats`]: initialBattingStats,
       [`${inningsKey}.bowlingStats`]: initialBowlingStats,
@@ -100,92 +106,159 @@ export function CricketScoringInterface({ matchId }: CricketScoringProps) {
     if (!matchData) return;
     if (matchData.currentInnings === 1) {
         await updateMatch(matchId, { status: 'Innings Break', currentInnings: 2, onStrikeBatsmanId: null, nonStrikeBatsmanId: null, currentBowlerId: null, previousBowlerId: null });
-        setUiState('innings_break');
     } else {
         await updateMatch(matchId, { status: 'Completed' });
-        setUiState('match_over');
     }
   }, [matchData, matchId]);
 
-  const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: boolean, extraType?: 'wide' | 'no_ball' | 'bye' | 'leg_bye') => {
-    if (!matchData || isUpdating) return;
+  const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: boolean, extraType?: ExtraType) => {
+    if (!matchData || isUpdating || !matchData.onStrikeBatsmanId || !matchData.currentBowlerId) return;
+    
     setIsUpdating(true);
 
-    const { updatedData, isOverComplete, isWicketFallen, isInningsOver } = processDelivery(matchData, { runs, isLegal, isWicket, extraType });
-    
-    if (isInningsOver) {
+    try {
+      const { updatedData, isOverComplete, isWicketFallen, isInningsOver } = processDelivery(matchData, { runs, isLegal, isWicket, extraType });
+      
+      const inningsKey = `innings${matchData.currentInnings}` as const;
+      const innings = matchData.currentInnings === 1 ? matchData.innings1 : matchData.innings2;
+      
+      const batsmanRuns = (isLegal && !extraType) ? runs : 0;
+      const extraRuns = (extraType === 'wide' || extraType === 'no_ball') ? 1 + runs : (extraType ? runs : 0);
+      
+      const deliveryLog: Delivery = {
+          ballId: uuidv4(),
+          overNumber: Math.floor(innings.overs),
+          ballInOver: innings.ballsInOver + 1,
+          batsmanId: matchData.onStrikeBatsmanId,
+          bowlerId: matchData.currentBowlerId,
+          runsScored: { batsman: batsmanRuns, extras: extraRuns, total: batsmanRuns + extraRuns },
+          isWicket: isWicketFallen,
+          isLegal,
+          ...(extraType && { extraType }),
+          ...(isWicketFallen && { wicketInfo: null }),
+      };
+
+      if (!updatedData[inningsKey].deliveryHistory) updatedData[inningsKey].deliveryHistory = [];
+      if (!updatedData[inningsKey].undoStack) updatedData[inningsKey].undoStack = [];
+
+      updatedData[inningsKey].deliveryHistory.push(deliveryLog);
+      updatedData[inningsKey].undoStack.push(JSON.stringify(matchData));
+
+      if (isInningsOver) {
+          await updateMatch(matchId, updatedData);
+          handleInningsEnd();
+      } else if (isWicketFallen) {
+        setWicketInfo({ batsmanId: matchData.onStrikeBatsmanId! });
+        setUiState('selecting_wicket_type');
         await updateMatch(matchId, updatedData);
-        handleInningsEnd();
-    } else if (isWicketFallen) {
-      setWicketInfo({ batsmanId: matchData.onStrikeBatsmanId! });
-      setUiState('selecting_wicket_type');
-    } else if (isOverComplete) {
-      const finalData = processEndOfOver(updatedData);
-      await updateMatch(matchId, finalData);
-      setUiState('selecting_next_bowler');
-    } else {
-      await updateMatch(matchId, updatedData);
+      } else if (isOverComplete) {
+        const finalData = processEndOfOver(updatedData);
+        await updateMatch(matchId, finalData);
+        setUiState('selecting_next_bowler');
+      } else {
+        await updateMatch(matchId, updatedData);
+      }
+    } catch (error) {
+        console.error("Error processing delivery:", error);
+    } finally {
+        setIsUpdating(false);
     }
-    
-    setIsUpdating(false);
   }, [matchData, matchId, isUpdating, handleInningsEnd]);
 
-  // ✨ FIX: This function is now correctly called by the ScoringPanel.
-  // It captures the ID of the on-strike batsman when the wicket button is pressed.
+  /**
+   * ✨ FIX: This function now correctly handles a wicket delivery.
+   * A wicket is treated as a legal, 0-run delivery that also results in a wicket.
+   * Calling handleDelivery ensures the ball is counted and logged correctly
+   * before the UI switches to ask for the dismissal type.
+   */
   const handleWicket = useCallback(() => {
-    if (!matchData || !matchData.onStrikeBatsmanId) return;
-    setWicketInfo({ batsmanId: matchData.onStrikeBatsmanId });
-    setUiState('selecting_wicket_type');
-  }, [matchData]);
+    handleDelivery(0, true, true);
+  }, [handleDelivery]);
 
   const handleWicketConfirm = useCallback(async (type: WicketType, fielderId?: string) => {
     if (!matchData || !wicketInfo) return;
     setIsUpdating(true);
     
-    const updatedData = processWicket(matchData, type, wicketInfo.batsmanId, fielderId);
-    
-    const currentInnings = updatedData.currentInnings === 1 ? updatedData.innings1 : updatedData.innings2;
-    if (currentInnings.wickets >= (updatedData.rules.playersPerTeam - 1)) {
-        await updateMatch(matchId, updatedData);
-        handleInningsEnd();
-    } else {
-        await updateMatch(matchId, updatedData);
-        setUiState('selecting_next_batsman');
-    }
+    try {
+      let updatedData = processWicket(matchData, type, wicketInfo.batsmanId, fielderId);
+      
+      const inningsKey = `innings${updatedData.currentInnings}` as const;
+      const innings = updatedData.currentInnings === 1 ? updatedData.innings1 : updatedData.innings2;
+      const history = innings.deliveryHistory;
+      
+      if (history && history.length > 0) {
+          const newWicketInfo = { type, batsmanId: wicketInfo.batsmanId, ...(fielderId && { fielderId }) };
+          history[history.length - 1].wicketInfo = newWicketInfo;
+      }
 
-    setWicketInfo(null);
-    setIsUpdating(false);
+      const playersPerTeam = updatedData.rules?.playersPerTeam || 11;
+      if (innings.wickets >= playersPerTeam - 1) {
+          await updateMatch(matchId, updatedData);
+          handleInningsEnd();
+      } else {
+          await updateMatch(matchId, updatedData);
+          setUiState('selecting_next_batsman');
+      }
+    } catch (error) {
+        console.error("Error confirming wicket:", error);
+    } finally {
+        setWicketInfo(null);
+        setIsUpdating(false);
+    }
   }, [matchData, matchId, wicketInfo, handleInningsEnd]);
 
   const handleNextBatsmanSelect = useCallback(async (batsmanId: string) => {
-    if (!matchData) return;
+    if (!matchData || !currentInningsData) return;
     const inningsKey = `innings${matchData.currentInnings}` as const;
     const allPlayers = [...teamAPlayers, ...teamBPlayers];
     const newBatsman = { id: batsmanId, name: allPlayers.find(p => p.id === batsmanId)?.name || 'Unknown', runs: 0, balls: 0, status: 'not_out' as const };
-    await updateMatch(matchId, { onStrikeBatsmanId: batsmanId, [`${inningsKey}.battingStats`]: arrayUnion(newBatsman) });
+    
+    const updatedBattingStats = [...currentInningsData.battingStats, newBatsman];
+    await updateMatch(matchId, { onStrikeBatsmanId: batsmanId, [`${inningsKey}.battingStats`]: updatedBattingStats });
     setUiState('scoring');
-  }, [matchId, matchData, teamAPlayers, teamBPlayers]);
+  }, [matchId, matchData, currentInningsData, teamAPlayers, teamBPlayers]);
 
   const handleNextBowlerSelect = useCallback(async (bowlerId: string) => {
-    if (!matchData) return;
+    if (!matchData || !currentInningsData) return;
     const inningsKey = `innings${matchData.currentInnings}` as const;
-    const innings = matchData[inningsKey];
-    const existingBowler = innings.bowlingStats.find(b => b.id === bowlerId);
+    const existingBowler = currentInningsData.bowlingStats.find(b => b.id === bowlerId);
+    
     if (existingBowler) {
         await updateMatch(matchId, { currentBowlerId: bowlerId });
     } else {
         const allPlayers = [...teamAPlayers, ...teamBPlayers];
         const newBowler = { id: bowlerId, name: allPlayers.find(p => p.id === bowlerId)?.name || 'Unknown', overs: 0, runs: 0, wickets: 0 };
-        await updateMatch(matchId, { currentBowlerId: bowlerId, [`${inningsKey}.bowlingStats`]: arrayUnion(newBowler) });
+        const updatedBowlingStats = [...currentInningsData.bowlingStats, newBowler];
+        await updateMatch(matchId, { currentBowlerId: bowlerId, [`${inningsKey}.bowlingStats`]: updatedBowlingStats });
     }
     setUiState('scoring');
-  }, [matchId, matchData, teamAPlayers, teamBPlayers]);
+  }, [matchId, matchData, currentInningsData, teamAPlayers, teamBPlayers]);
+
+  const handleUndo = useCallback(async () => {
+      if (!matchData || isUpdating) return;
+      
+      setIsUpdating(true);
+      try {
+        const previousState = revertToPreviousState(matchData);
+        if (previousState) {
+          await updateMatch(matchId, previousState);
+          setUiState('scoring');
+        } else {
+          alert("No deliveries to undo.");
+        }
+      } catch (error) {
+          console.error("Error undoing delivery:", error);
+      } finally {
+        setIsUpdating(false);
+      }
+  }, [matchData, matchId, isUpdating]);
 
   // --- RENDER LOGIC ---
   if (loading) return <p className="text-center text-gray-400">Loading...</p>;
   if (error) return <p className="text-center text-red-500">{error}</p>;
   if (!matchData) return <p className="text-center text-red-500">Match data not found.</p>;
 
+  // This function determines which UI component to show based on the current state.
   const renderContent = () => {
     switch (uiState) {
       case 'waiting_for_toss':
@@ -193,8 +266,8 @@ export function CricketScoringInterface({ matchId }: CricketScoringProps) {
       case 'selecting_opening_players':
         return <TeamPlayerSelector matchData={matchData} teamAPlayers={teamAPlayers} teamBPlayers={teamBPlayers} onSelectionComplete={handlePlayerSelectionComplete} />;
       case 'scoring':
-        // ✨ FIX: The `onWicket` prop now correctly passes the `handleWicket` function.
-        return <ScoringPanel isUpdating={isUpdating} onDelivery={handleDelivery} onWicket={handleWicket} onUndo={() => {}} canUndo={false} />;
+        const canUndo = (currentInningsData?.undoStack?.length || 0) > 0;
+        return <ScoringPanel isUpdating={isUpdating} onDelivery={handleDelivery} onWicket={handleWicket} onUndo={handleUndo} canUndo={canUndo} />;
       case 'selecting_wicket_type':
         return <WicketModal fielders={bowlingTeamPlayers} onSelect={handleWicketConfirm} onCancel={() => setUiState('scoring')} />;
       case 'selecting_next_batsman':

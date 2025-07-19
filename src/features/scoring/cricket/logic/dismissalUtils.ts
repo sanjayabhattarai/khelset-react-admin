@@ -65,7 +65,7 @@ export const processWicket = (
 
   // --- 4. Update Innings Wicket Count ---
   // This line only runs for valid wickets due to the early return in the `isWicketValid` check above.
-  innings.wickets += 1;
+  // innings.wickets += 1;
 
   // --- 5. Clear the dismissed batsman from their current position ---
   // The UI will then prompt for a new batsman to replace them.

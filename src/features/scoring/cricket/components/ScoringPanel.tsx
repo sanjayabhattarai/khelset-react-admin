@@ -1,21 +1,18 @@
 // src/features/scoring/cricket/components/ScoringPanel.tsx
-// This component displays the main scoring buttons (runs, extras, wickets).
-
 import { useState } from 'react';
-import { ExtrasModal } from './ExtrasModal'; // We will use the modal we created earlier.
+import { ExtrasModal } from './ExtrasModal';
 
-// Define the props this component will receive from its parent.
 interface ScoringPanelProps {
-  isUpdating: boolean; // To disable buttons during an update.
+  isUpdating: boolean;
   onDelivery: (
     runs: number,
     isLegal: boolean,
     isWicket: boolean,
     extraType?: 'wide' | 'no_ball' | 'bye' | 'leg_bye'
   ) => void;
-  onWicket: () => void; // A dedicated function to trigger the wicket modal.
-  onUndo: () => void; // A function to undo the last delivery.
-  canUndo: boolean; // To enable/disable the undo button.
+  onWicket: () => void;
+  onUndo: () => void;
+  canUndo: boolean;
 }
 
 export function ScoringPanel({
@@ -25,28 +22,23 @@ export function ScoringPanel({
   onUndo,
   canUndo,
 }: ScoringPanelProps) {
-  // State to control the visibility of the extras modal.
   const [extrasModalType, setExtrasModalType] = useState<'bye' | 'leg_bye' | null>(null);
 
-  // This function handles clicks on the bye/leg_bye buttons, showing the modal.
   const handleExtrasClick = (type: 'bye' | 'leg_bye') => {
     setExtrasModalType(type);
   };
 
-  // This function is called when the extras modal is confirmed.
   const handleExtrasConfirm = (runs: number) => {
     if (extrasModalType) {
-      // It calls the main onDelivery function with the selected number of runs.
       onDelivery(runs, true, false, extrasModalType);
     }
-    setExtrasModalType(null); // Close the modal.
+    setExtrasModalType(null);
   };
 
   return (
     <div>
-      {/* The main grid of scoring buttons */}
+      {/* Run buttons */}
       <div className="grid grid-cols-4 gap-2 text-center">
-        {/* Buttons for standard runs (0 to 6) */}
         {[0, 1, 2, 3, 4, 6].map((run) => (
           <button
             key={run}
@@ -58,7 +50,7 @@ export function ScoringPanel({
           </button>
         ))}
 
-        {/* Buttons for simple extras (Wide, No Ball) */}
+        {/* Extras: Wide and No Ball */}
         <button
           onClick={() => onDelivery(0, false, false, 'wide')}
           disabled={isUpdating}
@@ -74,7 +66,7 @@ export function ScoringPanel({
           No Ball
         </button>
 
-        {/* Buttons that open the ExtrasModal for byes and leg byes */}
+        {/* Extras: Bye and Leg Bye (open modal) */}
         <button
           onClick={() => handleExtrasClick('bye')}
           disabled={isUpdating}
@@ -90,7 +82,7 @@ export function ScoringPanel({
           Leg Bye
         </button>
 
-        {/* The main Wicket button */}
+        {/* Wicket button - only calls onWicket callback */}
         <button
           onClick={onWicket}
           disabled={isUpdating}
@@ -100,7 +92,7 @@ export function ScoringPanel({
         </button>
       </div>
 
-      {/* The Undo button */}
+      {/* Undo button */}
       <button
         onClick={onUndo}
         disabled={isUpdating || !canUndo}
@@ -109,7 +101,7 @@ export function ScoringPanel({
         Undo Last Ball
       </button>
 
-      {/* Conditionally render the ExtrasModal when its state is set */}
+      {/* Extras Modal */}
       {extrasModalType && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <ExtrasModal
