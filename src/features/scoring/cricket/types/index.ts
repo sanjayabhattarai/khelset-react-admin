@@ -1,6 +1,6 @@
 // src/features/scoring/cricket/types/index.ts
-// This file contains all the shared TypeScript interfaces for the scoring feature.
-// It acts as the single source of truth for all data shapes.
+// This file has been updated for the subcollection refactor.
+// The `undoStack` has been removed from the Innings interface.
 
 /**
  * Represents a single player's basic information.
@@ -15,6 +15,11 @@ export interface Player {
  * Defines all possible ways a batsman can be dismissed.
  */
 export type WicketType = 'bowled' | 'caught' | 'lbw' | 'run_out' | 'stumped' | 'hit_wicket' | 'retired_hurt';
+
+/**
+ * Defines all possible types of extra deliveries.
+ */
+export type ExtraType = 'wide' | 'no_ball' | 'bye' | 'leg_bye';
 
 /**
  * Represents a batsman's statistics within an innings.
@@ -44,7 +49,8 @@ export interface Bowler {
 }
 
 /**
- * A detailed model for a single delivery, used for logging and commentary.
+ * A detailed model for a single delivery. This will now be its own document
+ * in the `deliveryHistory` subcollection.
  */
 export interface Delivery {
   ballId: string;
@@ -57,17 +63,19 @@ export interface Delivery {
     extras: number;
     total: number;
   };
-  extraType?: 'wide' | 'no_ball' | 'bye' | 'leg_bye';
+  extraType?: ExtraType;
   isWicket: boolean;
+  isLegal: boolean;
   wicketInfo?: {
     type: WicketType;
     batsmanId: string;
     fielderId?: string;
-  };
+  } | null;
 }
 
 /**
  * Represents the complete state of a single innings.
+ * ✨ CHANGE: `undoStack` has been removed as it will now be a subcollection.
  */
 export interface Innings {
   battingTeamId: string | null;
@@ -80,7 +88,6 @@ export interface Innings {
   battingStats: Batsman[];
   bowlingStats: Bowler[];
   deliveryHistory: Delivery[];
-  undoStack: string[];
 }
 
 /**
@@ -94,7 +101,7 @@ export interface MatchRules {
 }
 
 /**
- * Represents the entire state of the match document in Firestore.
+ * Represents the entire state of the main match document in Firestore.
  */
 export interface MatchData {
   teamA_id: string;

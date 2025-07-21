@@ -1,5 +1,5 @@
 // src/features/scoring/cricket/services/firestoreService.ts
-// This file centralizes all interactions with the Firestore database for the scoring feature.
+// This file has been updated to handle writing to subcollections for delivery history and undo states.
 
 import {
   doc,
@@ -10,15 +10,18 @@ import {
   updateDoc,
   query,
   where,
+  addDoc,
+  orderBy,
+  limit,
+  deleteDoc,
+  writeBatch, // Import writeBatch for atomic operations
+  setDoc,
 } from 'firebase/firestore';
 import { db } from '../../../../api/firebase'; // Adjust the import path to your firebase config
-import { MatchData, Player } from '../types';
+import { MatchData, Player, Delivery } from '../types';
 
 /**
- * Subscribes to real-time updates for a specific match document.
- * @param matchId The ID of the match to listen to.
- * @param onUpdate A callback function that is called every time the match data changes.
- * @returns An unsubscribe function to stop listening to updates.
+ * Subscribes to real-time updates for the main match document.
  */
 export const subscribeToMatch = (
   matchId: string,
@@ -36,9 +39,7 @@ export const subscribeToMatch = (
 };
 
 /**
- * Updates a match document in Firestore with the provided data.
- * @param matchId The ID of the match to update.
- * @param data An object containing the fields to update.
+ * Updates the main match document in Firestore.
  */
 export const updateMatch = async (matchId: string, data: { [key: string]: any }) => {
   const matchDocRef = doc(db, 'matches', matchId);
@@ -51,10 +52,86 @@ export const updateMatch = async (matchId: string, data: { [key: string]: any })
 };
 
 /**
- * Fetches the array of player IDs for a specific team.
- * @param teamId The ID of the team.
- * @returns A promise that resolves to an array of player IDs.
+ * Adds a detailed delivery object as a new document in a subcollection.
  */
+export const addDeliveryToHistory = async (matchId: string, inningsNum: number, deliveryData: Delivery) => {
+    // Construct the path to the correct subcollection.
+    const historyCollectionRef = collection(db, 'matches', matchId, `innings${inningsNum}_deliveryHistory`);
+    try {
+        // addDoc creates a new document with an auto-generated ID.
+        await addDoc(historyCollectionRef, deliveryData);
+    } catch (error) {
+        console.error("Error adding delivery to history:", error);
+        throw error;
+    }
+};
+
+/**
+ * Saves the entire match state as a new document in the undoStack subcollection
+ * and ensures that only the last 2 states are kept.
+ * @param matchId The ID of the parent match.
+ * @param inningsNum The current innings number (1 or 2).
+ * @param stateToSave The full MatchData object, stringified.
+ */
+export const addStateToUndoStack = async (matchId: string, inningsNum: number, stateToSave: string) => {
+    const undoCollectionRef = collection(db, 'matches', matchId, `innings${inningsNum}_undoStack`);
+    try {
+        // First, add the new state. We use the current timestamp as the document ID
+        // to ensure they are naturally ordered chronologically.
+        const newUndoDocRef = doc(undoCollectionRef, Date.now().toString());
+        await setDoc(newUndoDocRef, { state: stateToSave });
+
+        // ✨ NEW LOGIC: After adding, check if the collection is too large.
+        const q = query(undoCollectionRef, orderBy('__name__', 'desc'));
+        const snapshot = await getDocs(q);
+
+        // If we have more than 2 undo states, delete the oldest ones.
+        if (snapshot.docs.length > 2) {
+            const batch = writeBatch(db);
+            // Get all documents except the 2 most recent ones.
+            const docsToDelete = snapshot.docs.slice(2);
+            docsToDelete.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            // Commit all the deletions in a single atomic operation.
+            await batch.commit();
+        }
+    } catch (error) {
+        console.error("Error adding state to undo stack:", error);
+        throw error;
+    }
+};
+
+/**
+ * Fetches the most recent state from the undoStack subcollection.
+ */
+export const getLatestUndoState = async (matchId: string, inningsNum: number): Promise<{ id: string; data: string } | null> => {
+    const undoCollectionRef = collection(db, 'matches', matchId, `innings${inningsNum}_undoStack`);
+    const q = query(undoCollectionRef, orderBy('__name__', 'desc'), limit(1));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) {
+        return null;
+    }
+    const lastDoc = snapshot.docs[0];
+    return { id: lastDoc.id, data: lastDoc.data().state };
+};
+
+/**
+ * Deletes a document from a subcollection, used by the undo feature.
+ */
+export const deleteFromUndoStack = async (matchId: string, inningsNum: number, docId: string) => {
+    const docRef = doc(db, 'matches', matchId, `innings${inningsNum}_undoStack`, docId);
+    try {
+        await deleteDoc(docRef);
+    } catch (error) {
+        console.error("Error deleting from undo stack:", error);
+        throw error;
+    }
+};
+
+
+// --- Player and Team fetching functions remain the same ---
+
 export const getTeamPlayerIds = async (teamId: string): Promise<string[]> => {
   if (!teamId) return [];
   const teamDocRef = doc(db, 'teams', teamId);
@@ -62,11 +139,6 @@ export const getTeamPlayerIds = async (teamId: string): Promise<string[]> => {
   return teamDoc.exists() ? (teamDoc.data().players as string[]) : [];
 };
 
-/**
- * Fetches multiple player documents from Firestore based on an array of IDs.
- * @param ids An array of player document IDs.
- * @returns A promise that resolves to an array of Player objects.
- */
 export const getPlayerDocs = async (ids: string[]): Promise<Player[]> => {
   if (!ids || ids.length === 0) return [];
   const playersQuery = query(collection(db, 'players'), where('__name__', 'in', ids));

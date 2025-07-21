@@ -1,10 +1,12 @@
 // src/features/events/CreateMatchForm.tsx
-// This component has been updated to include a section for setting custom match rules.
+// This component has been updated to correctly initialize innings data,
+// fixing the "invalid nested entity" bug at its source.
 
 import { useState, useEffect } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../api/firebase';
-import { DEFAULT_INNINGS_STATE } from '../scoring/cricket/constants/defaults'; // Assuming you have this file
+// ✨ FIX: We import the type, not a constant, to ensure we can create clean copies.
+import { Innings } from '../scoring/cricket/types';
 
 // Define the shape of the props this component will receive
 interface CreateMatchFormProps {
@@ -18,7 +20,7 @@ export function CreateMatchForm({ eventId, approvedTeams }: CreateMatchFormProps
   const [teamBId, setTeamBId] = useState<string>('');
   const [matchTime, setMatchTime] = useState('');
   
-  // ✨ NEW: State for the customizable match rules
+  // State for the customizable match rules
   const [totalOvers, setTotalOvers] = useState(20);
   const [playersPerTeam, setPlayersPerTeam] = useState(11);
   const [maxOversPerBowler, setMaxOversPerBowler] = useState(4);
@@ -44,13 +46,30 @@ export function CreateMatchForm({ eventId, approvedTeams }: CreateMatchFormProps
     setMessage('');
 
     try {
-      // ✨ NEW: Assemble the rules object from the form state.
+      // Assemble the rules object from the form state.
       const matchRules = {
         totalOvers,
         playersPerTeam,
         maxOversPerBowler,
         customRulesText,
       };
+
+      // ✨ FIX: Define a function to generate a fresh, default innings object.
+      // This ensures that innings1 and innings2 are two completely separate objects
+      // and that the history arrays are correctly initialized as empty.
+      const createDefaultInnings = (): Innings => ({
+        battingTeamId: null,
+        bowlingTeamId: null,
+        battingTeamName: "TBD",
+        score: 0,
+        wickets: 0,
+        overs: 0,
+        ballsInOver: 0,
+        battingStats: [],
+        bowlingStats: [],
+        deliveryHistory: [], // Correctly initialized as empty array
+        // ✨ FIX: The undoStack is no longer part of the main document, so it is removed from here.
+      });
 
       // This is the full data structure for a new match document.
       const newMatchData = {
@@ -60,7 +79,6 @@ export function CreateMatchForm({ eventId, approvedTeams }: CreateMatchFormProps
         scheduledTime: new Date(matchTime),
         status: 'Upcoming' as const,
         sportType: 'cricket',
-        // Default states for a new match
         currentInnings: 1,
         onStrikeBatsmanId: null,
         nonStrikeBatsmanId: null,
@@ -69,11 +87,10 @@ export function CreateMatchForm({ eventId, approvedTeams }: CreateMatchFormProps
         isFreeHit: false,
         tossWinnerId: null,
         tossDecision: null,
-        // ✨ NEW: Add the rules object to the match data.
         rules: matchRules,
-        // Initialize both innings with a default empty state.
-        innings1: DEFAULT_INNINGS_STATE,
-        innings2: DEFAULT_INNINGS_STATE,
+        // ✨ FIX: Call the function to create two independent innings objects.
+        innings1: createDefaultInnings(),
+        innings2: createDefaultInnings(),
         createdAt: serverTimestamp(),
       };
 
@@ -81,7 +98,6 @@ export function CreateMatchForm({ eventId, approvedTeams }: CreateMatchFormProps
       await addDoc(collection(db, 'matches'), newMatchData);
 
       setMessage('Match created successfully with custom rules!');
-      // Optionally reset form fields here
       setMatchTime('');
       setCustomRulesText('');
 
@@ -129,7 +145,7 @@ export function CreateMatchForm({ eventId, approvedTeams }: CreateMatchFormProps
           <input id="matchTime" type="datetime-local" value={matchTime} onChange={(e) => setMatchTime(e.target.value)} required className="w-full mt-1 px-3 py-2 bg-gray-600 text-white border border-gray-500 rounded-md" />
         </div>
 
-        {/* ✨ NEW: Match Rules Section */}
+        {/* Match Rules Section */}
         <div className="border-t border-gray-600 pt-4">
             <h5 className="text-md font-bold mb-2 text-white">Match Rules</h5>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
