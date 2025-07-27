@@ -1,13 +1,14 @@
 // seed.js
 // FINAL VERSION: This script creates a complete and expanded set of test data.
-// It uses the correct data models and adds more events and teams for thorough testing.
+// It creates full 11-player squads and correctly adds a 'teamId' to each player document.
 
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { readFileSync } from 'fs';
 
 // --- 1. SETUP ---
-// Load the service account key from the JSON file in the same directory.
+// Load your service account key from the JSON file.
+// Make sure the filename matches yours exactly.
 const serviceAccount = JSON.parse(
   readFileSync('./khelset-new-firebase-adminsdk.json', 'utf8')
 );
@@ -24,9 +25,9 @@ async function seedDatabase() {
   const batch = db.batch();
 
   // --- 2. USER PROFILES ---
-  // Creates the necessary user documents in Firestore for your existing auth users.
+  // Creates the necessary user documents for your admin and test user.
   console.log("👤 Preparing user profiles...");
-  const adminUID = "1AiQatTrlTT8mOmnejvnjT8Xqlp1"; // The UID for sanju@gmail.com
+  const adminUID = "1AiQatTrlTT8mOmnejvnjT8Xqlp1"; // sanju@gmail.com
   const adminUserRef = db.collection('users').doc(adminUID);
   batch.set(adminUserRef, {
       email: 'sanju@gmail.com',
@@ -34,8 +35,7 @@ async function seedDatabase() {
       createdAt: FieldValue.serverTimestamp()
   });
 
-  // The UID for your phone number user account.
-  const phoneUserUID = "Tg4GRxdbXzbyNRcTrmjIPct51YL2"; 
+  const phoneUserUID = "Tg4GRxdbXzbyNRcTrmjIPct51YL2"; // Phone user
   const phoneUserRef = db.collection('users').doc(phoneUserUID);
   batch.set(phoneUserRef, {
       role: 'user',
@@ -43,98 +43,134 @@ async function seedDatabase() {
   });
   console.log("✔️ User profiles prepared.");
 
-  // --- 3. PLAYERS ---
-  // Creates a large pool of players for all teams.
-  console.log("🧍 Preparing players...");
-  const playersData = [
-    // Nepal
-    { name: "K. Bhurtel", role: "Batsman" }, { name: "A. Sheikh", role: "Wicketkeeper" },
-    { name: "R. Paudel", role: "Captain" }, { name: "D.S. Airee", role: "All-rounder" },
-    // Netherlands
-    { name: "M. O'Dowd", role: "Batsman" }, { name: "S. Edwards", role: "Captain" },
-    { name: "B. de Leede", role: "All-rounder" }, { name: "P. van Meekeren", role: "Bowler" },
-    // India
-    { name: "Rohit Sharma", role: "Captain" }, { name: "Virat Kohli", role: "Batsman" },
-    { name: "Jasprit Bumrah", role: "Bowler" }, { name: "Rishabh Pant", role: "Wicketkeeper" },
-    // Pakistan
-    { name: "Babar Azam", role: "Captain" }, { name: "Mohammad Rizwan", role: "Wicketkeeper" },
-    { name: "Shaheen Afridi", role: "Bowler" }, { name: "Fakhar Zaman", role: "Batsman" },
+  // --- 3. TEAMS & PLAYERS (NEW EXPANDED LOGIC) ---
+  // This section now creates full 11-player squads and correctly links
+  // each player to their team by adding a 'teamId' to the player document.
+  console.log("🏏 Preparing teams and full 11-player squads...");
+
+  const teamsWithPlayers = [
+    {
+      name: "Nepal",
+      players: [
+        { name: "K. Bhurtel", role: "Batsman" }, { name: "A. Sheikh", role: "Wicketkeeper" },
+        { name: "R. Paudel", role: "Captain" }, { name: "D.S. Airee", role: "All-rounder" },
+        { name: "G. Malla", role: "Batsman" }, { name: "S. Lamichhane", role: "Bowler" },
+        { name: "K. Malla", role: "All-rounder" }, { name: "S. Kami", role: "Bowler" },
+        { name: "B. Sharki", role: "Batsman" }, { name: "A. Bohara", role: "Bowler" },
+        { name: "L. Rajbanshi", role: "Bowler" }
+      ]
+    },
+    {
+      name: "India",
+      players: [
+        { name: "Rohit Sharma", role: "Captain" }, { name: "Virat Kohli", role: "Batsman" },
+        { name: "Jasprit Bumrah", role: "Bowler" }, { name: "Rishabh Pant", role: "Wicketkeeper" },
+        { name: "S. Gill", role: "Batsman" }, { name: "H. Pandya", role: "All-rounder" },
+        { name: "R. Jadeja", role: "All-rounder" }, { name: "M. Siraj", role: "Bowler" },
+        { name: "Suryakumar Yadav", role: "Batsman" }, { name: "K. L. Rahul", role: "Batsman" },
+        { name: "Kuldeep Yadav", role: "Bowler" }
+      ]
+    },
+    {
+      name: "Pakistan",
+      players: [
+        { name: "Babar Azam", role: "Captain" }, { name: "Mohammad Rizwan", role: "Wicketkeeper" },
+        { name: "Shaheen Afridi", role: "Bowler" }, { name: "Fakhar Zaman", role: "Batsman" },
+        { name: "Imam-ul-Haq", role: "Batsman" }, { name: "Haris Rauf", role: "Bowler" },
+        { name: "Shadab Khan", role: "All-rounder" }, { name: "Iftikhar Ahmed", role: "All-rounder" },
+        { name: "Naseem Shah", role: "Bowler" }, { name: "Abdullah Shafique", role: "Batsman" },
+        { name: "Mohammad Nawaz", role: "All-rounder" }
+      ]
+    },
+    {
+      name: "Netherlands",
+      players: [
+        { name: "M. O'Dowd", role: "Batsman" }, { name: "S. Edwards", role: "Captain" },
+        { name: "B. de Leede", role: "All-rounder" }, { name: "P. van Meekeren", role: "Bowler" },
+        { name: "Vikramjit Singh", role: "Batsman" }, { name: "Teja Nidamanuru", role: "Batsman" },
+        { name: "Logan van Beek", role: "All-rounder" }, { name: "Tim Pringle", role: "Bowler" },
+        { name: "Aryan Dutt", role: "Bowler" }, { name: "Wesley Barresi", role: "Wicketkeeper" },
+        { name: "Colin Ackermann", role: "All-rounder" }
+      ]
+    }
   ];
 
-  const playerDocs = [];
-  for (const playerData of playersData) {
-    const playerRef = db.collection("players").doc();
-    batch.set(playerRef, { ...playerData, createdAt: FieldValue.serverTimestamp() });
-    playerDocs.push({ id: playerRef.id, ...playerData });
+  const teamRefs = {}; // To store the generated team references
+
+  for (const teamData of teamsWithPlayers) {
+    // A. Create the Team document first to get its ID
+    const teamRef = db.collection("teams").doc();
+    teamRefs[teamData.name] = teamRef; // Save ref for later use in match creation
+    const playerIds = [];
+
+    // B. Create each Player document with the teamId
+    for (const playerData of teamData.players) {
+      const playerRef = db.collection("players").doc();
+      playerIds.push(playerRef.id);
+      batch.set(playerRef, {
+        ...playerData,
+        teamId: teamRef.id, // ✨ CRITICAL FIX: Add the team's ID to the player
+        createdAt: FieldValue.serverTimestamp()
+      });
+    }
+
+    // C. Now set the Team document data, including the array of player IDs
+    batch.set(teamRef, {
+      name: teamData.name,
+      sportType: "cricket",
+      status: "Approved",
+      captainId: playerIds[0], // Assume the first player is the captain for simplicity
+      players: playerIds,
+      createdAt: FieldValue.serverTimestamp()
+    });
   }
-  console.log(`✔️ ${playerDocs.length} players prepared.`);
+  console.log(`✔️ 4 teams with 44 players prepared. 'teamId' has been added to each player.`);
 
   // --- 4. EVENTS ---
-  // Creates two separate events, both with status 'upcoming'.
+  // Creates two separate events.
   console.log("📅 Preparing events...");
-  
-  // Event 1
   const event1Ref = db.collection("events").doc();
   batch.set(event1Ref, {
     eventName: "Asia Cup T20",
     sportType: "cricket",
     location: "Colombo",
-    status: "upcoming", // This will make it appear in the Flutter app
+    status: "upcoming",
     date: new Date('2025-08-10T14:00:00Z'),
-    registrationDeadline: new Date('2025-08-01T23:59:59Z'),
     organizerId: adminUID,
     createdAt: FieldValue.serverTimestamp()
   });
-  console.log(`✔️ Event 1 prepared: ${event1Ref.id}`);
 
-  // Event 2
   const event2Ref = db.collection("events").doc();
   batch.set(event2Ref, {
     eventName: "Helsinki Premier League",
     sportType: "cricket",
     location: "Helsinki",
-    status: "upcoming", // This will also appear
+    status: "upcoming",
     date: new Date('2025-09-05T10:00:00Z'),
-    registrationDeadline: new Date('2025-08-25T23:59:59Z'),
     organizerId: adminUID,
     createdAt: FieldValue.serverTimestamp()
   });
-  console.log(`✔️ Event 2 prepared: ${event2Ref.id}`);
+  console.log("✔️ 2 events prepared.");
 
-  // --- 5. TEAMS ---
-  // Creates four teams and registers them for the first event.
-  console.log("🏏 Preparing teams for 'Asia Cup T20'...");
-  // FIXED: Removed TypeScript type annotations for compatibility with Node.js
-  const createTeam = (name, captainIndex, playerIndices) => {
-      const teamRef = db.collection("teams").doc();
-      batch.set(teamRef, {
-          name: name,
-          eventId: event1Ref.id, // All teams are in the first event
-          sportType: "cricket",
-          status: "Approved",
-          captainId: playerDocs[captainIndex].id,
-          players: playerIndices.map(i => playerDocs[i].id),
-          createdAt: FieldValue.serverTimestamp()
-      });
-      return teamRef;
-  };
+  // --- 5. REGISTER TEAMS TO AN EVENT ---
+  // Update the teams to be part of the first event
+  batch.update(teamRefs["Nepal"], { eventId: event1Ref.id });
+  batch.update(teamRefs["India"], { eventId: event1Ref.id });
+  batch.update(teamRefs["Pakistan"], { eventId: event1Ref.id });
+  batch.update(teamRefs["Netherlands"], { eventId: event1Ref.id });
+  console.log("✔️ Registered 4 teams to 'Asia Cup T20'.");
 
-  const teamNepalRef = createTeam("Nepal", 2, [0, 1, 2, 3]);
-  const teamNetherlandsRef = createTeam("Netherlands", 5, [4, 5, 6, 7]);
-  const teamIndiaRef = createTeam("India", 8, [8, 9, 10, 11]);
-  const teamPakistanRef = createTeam("Pakistan", 12, [12, 13, 14, 15]);
-  console.log("✔️ 4 teams prepared.");
 
   // --- 6. MATCH ---
   // Creates one upcoming match for the first event.
-  console.log("🏟️  Preparing an upcoming match...");
+  console.log("🏟️  Preparing an upcoming match (India vs Pakistan)...");
   const matchRef = db.collection("matches").doc();
   batch.set(matchRef, {
     eventId: event1Ref.id,
-    teamA_id: teamIndiaRef.id,
-    teamB_id: teamPakistanRef.id,
+    teamA_id: teamRefs["India"].id,
+    teamB_id: teamRefs["Pakistan"].id,
     sportType: "cricket",
-    status: "Upcoming", // Correct status
+    status: "Upcoming",
     scheduledTime: new Date('2025-08-12T14:00:00Z'),
     createdAt: FieldValue.serverTimestamp(),
     // All scoring data is correctly set to null or empty for a new match
@@ -142,9 +178,19 @@ async function seedDatabase() {
     onStrikeBatsmanId: null,
     nonStrikeBatsmanId: null,
     currentBowlerId: null,
-    result: "",
-    innings1: { battingTeamId: teamIndiaRef.id, bowlingTeamId: teamPakistanRef.id, score: 0, wickets: 0, overs: 0, battingStats: [], bowlingStats: [] },
-    innings2: { battingTeamId: teamPakistanRef.id, bowlingTeamId: teamIndiaRef.id, score: 0, wickets: 0, overs: 0, battingStats: [], bowlingStats: [] },
+    previousBowlerId: null,
+    tossWinnerId: null,
+    tossDecision: null,
+    isFreeHit: false,
+    rules: {
+        totalOvers: 20,
+        playersPerTeam: 11,
+        maxOversPerBowler: 4,
+        customRulesText: "Standard T20 rules apply."
+    },
+    // Innings objects are pre-filled but empty.
+    innings1: { battingTeamId: null, bowlingTeamId: null, battingTeamName: "TBD", score: 0, wickets: 0, overs: 0, ballsInOver: 0, battingStats: [], bowlingStats: [] },
+    innings2: { battingTeamId: null, bowlingTeamId: null, battingTeamName: "TBD", score: 0, wickets: 0, overs: 0, ballsInOver: 0, battingStats: [], bowlingStats: [] },
   });
   console.log("✔️ 1 upcoming match prepared.");
 

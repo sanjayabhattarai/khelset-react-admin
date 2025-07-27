@@ -1,54 +1,70 @@
-// src/features/scoring/cricket/components/MatchSummary.tsx
-// This component is displayed when the match is completed.
-// It shows the final result and a summary of both innings.
-
 import { MatchData } from '../types';
 
-// Define the props this component will receive.
+// Define the props this component expects
 interface MatchSummaryProps {
   matchData: MatchData;
+  teamAName: string;
+  teamBName: string;
 }
 
-/**
- * A helper component to display the summary of a single innings.
- */
-const InningsSummary = ({ innings, teamName }: { innings: any, teamName: string }) => (
-  <div className="bg-gray-800 p-4 rounded-lg">
-    <p className="text-lg font-semibold">
-      {teamName}:{' '}
-      <span className="font-bold text-green-400">
-        {innings.score} / {innings.wickets}
-      </span>
-      <span className="text-sm text-gray-400"> ({innings.overs.toFixed(1)} Overs)</span>
-    </p>
-  </div>
-);
+export function MatchSummary({ matchData, teamAName, teamBName }: MatchSummaryProps) {
+  
+  // This logic determines the winner and the margin of victory.
+  const getResult = () => {
+    const { innings1, innings2, teamA_id, teamB_id } = matchData;
 
-export function MatchSummary({ matchData }: MatchSummaryProps) {
-  // Determine the winning team and the margin of victory.
-  const innings1 = matchData.innings1;
-  const innings2 = matchData.innings2;
-  let resultMessage = "Match Tied"; // Default result
+    if (!innings1 || !innings2) {
+      return { winnerName: "TBD", margin: "Match Incomplete" };
+    }
+    
+    const score1 = innings1.score || 0;
+    const score2 = innings2.score || 0;
+    
+    let winnerId: string | null = null;
+    let margin: string = "";
 
-  if (innings1.score > innings2.score) {
-    const margin = innings1.score - innings2.score;
-    resultMessage = `${innings1.battingTeamName} won by ${margin} run(s)`;
-  } else if (innings2.score > innings1.score) {
-    const wicketsLeft = 10 - innings2.wickets;
-    resultMessage = `${innings2.battingTeamName} won by ${wicketsLeft} wicket(s)`;
-  }
+    if (score2 > score1) {
+      // Team batting second won
+      winnerId = innings2.battingTeamId;
+      const wicketsInHand = (matchData.rules.playersPerTeam - 1) - (innings2.wickets || 0);
+      margin = `${wicketsInHand} wicket${wicketsInHand !== 1 ? 's' : ''}`;
+    } else if (score1 > score2) {
+      // Team batting first won
+      winnerId = innings1.battingTeamId;
+      const runDifference = score1 - score2;
+      margin = `${runDifference} run${runDifference !== 1 ? 's' : ''}`;
+    } else {
+      // Scores are tied
+      return { winnerName: "Match Tied", margin: "" };
+    }
+
+    // Now, use the team names passed in via props to find the winner's name
+    const winnerName = winnerId === teamA_id ? teamAName : teamBName;
+    
+    return { winnerName, margin };
+  };
+
+  const { winnerName, margin } = getResult();
 
   return (
-    <div className="bg-green-900 bg-opacity-50 p-6 rounded-lg text-white text-center space-y-4">
-      <h3 className="text-2xl font-bold">Match Completed</h3>
+    <div className="text-center bg-gray-800 p-8 rounded-lg shadow-xl animate-fade-in">
+      <h2 className="text-3xl font-bold text-green-400 mb-2">Match Finished</h2>
+      <p className="text-xl text-white">
+        {winnerName}
+        {margin && <span className="font-bold"> won by {margin}</span>}
+      </p>
       
-      <p className="text-xl font-bold text-yellow-400">{resultMessage}</p>
-
-      <div className="space-y-3 pt-2">
-        <InningsSummary innings={innings1} teamName={innings1.battingTeamName} />
-        <InningsSummary innings={innings2} teamName={innings2.battingTeamName} />
+      {/* You can add more summary details here if you like */}
+      <div className="mt-6 flex justify-around text-lg">
+        <div className="p-4 bg-gray-700 rounded-md">
+          <p className="text-gray-400 font-semibold">{teamAName}</p>
+          <p className="text-2xl font-bold">{matchData.innings1.battingTeamId === matchData.teamA_id ? matchData.innings1.score : matchData.innings2.score}/{matchData.innings1.battingTeamId === matchData.teamA_id ? matchData.innings1.wickets : matchData.innings2.wickets}</p>
+        </div>
+        <div className="p-4 bg-gray-700 rounded-md">
+          <p className="text-gray-400 font-semibold">{teamBName}</p>
+          <p className="text-2xl font-bold">{matchData.innings1.battingTeamId === matchData.teamB_id ? matchData.innings1.score : matchData.innings2.score}/{matchData.innings1.battingTeamId === matchData.teamB_id ? matchData.innings1.wickets : matchData.innings2.wickets}</p>
+        </div>
       </div>
-
     </div>
   );
 }

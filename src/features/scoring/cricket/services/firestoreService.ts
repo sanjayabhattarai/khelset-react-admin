@@ -1,6 +1,5 @@
 // src/features/scoring/cricket/services/firestoreService.ts
 // This file has been updated to handle writing to subcollections for delivery history and undo states.
-
 import {
   doc,
   collection,
@@ -16,9 +15,17 @@ import {
   deleteDoc,
   writeBatch, // Import writeBatch for atomic operations
   setDoc,
+  
 } from 'firebase/firestore';
 import { db } from '../../../../api/firebase'; // Adjust the import path to your firebase config
 import { MatchData, Player, Delivery } from '../types';
+
+// Define Team type locally if not exported from '../types'
+type Team = {
+  id: string;
+  name: string;
+  // Add other properties as needed
+};
 
 /**
  * Subscribes to real-time updates for the main match document.
@@ -36,6 +43,25 @@ export const subscribeToMatch = (
     }
   });
   return unsubscribe;
+};
+
+/**
+ * Fetches a single team document by its ID.
+ * @param teamId The ID of the team to fetch.
+ * @returns A Team object or null if not found.
+ */
+export const getTeam = async (teamId: string): Promise<Team | null> => {
+  if (!teamId) return null;
+  const teamDocRef = doc(db, 'teams', teamId);
+  const teamSnap = await getDoc(teamDocRef);
+
+  if (teamSnap.exists()) {
+    // Assumes your Team type has an 'id' and 'name' property
+    return { id: teamSnap.id, ...teamSnap.data() } as Team;
+  } else {
+    console.warn(`Team with ID ${teamId} not found.`);
+    return null;
+  }
 };
 
 /**

@@ -1,6 +1,4 @@
 // src/features/scoring/cricket/types/index.ts
-// This file has been updated for the subcollection refactor.
-// The `undoStack` has been removed from the Innings interface.
 
 /**
  * Represents a single player's basic information.
@@ -21,22 +19,29 @@ export type WicketType = 'bowled' | 'caught' | 'lbw' | 'run_out' | 'stumped' | '
  */
 export type ExtraType = 'wide' | 'no_ball' | 'bye' | 'leg_bye';
 
+// ✨ ADDED: A dedicated type for dismissal information. This replaces the old inline object.
+export interface Wicket {
+  type: WicketType;
+  fielderId?: string;
+  bowlerId: string;
+}
+
+// ✨ RENAMED: from 'Batsman' for clarity and added more fields.
 /**
- * Represents a batsman's statistics within an innings.
+ * Represents a player's batting statistics within an innings.
  */
-export interface Batsman {
+export interface BattingStat {
   id: string;
   name: string;
   runs: number;
   balls: number;
+  fours: number;
+  sixes: number;
   status: 'not_out' | 'out';
-  dismissal?: {
-    type: WicketType;
-    fielderId?: string;
-    bowlerId: string;
-  };
+  dismissal?: Wicket; // Uses the new Wicket type
 }
 
+// ✨ UPDATED: The 'isCurrent' flag has been added.
 /**
  * Represents a bowler's statistics within an innings.
  */
@@ -46,11 +51,11 @@ export interface Bowler {
   overs: number;
   runs: number;
   wickets: number;
+  isCurrent?: boolean; // This flag identifies the active bowler
 }
 
 /**
- * A detailed model for a single delivery. This will now be its own document
- * in the `deliveryHistory` subcollection.
+ * A detailed model for a single delivery.
  */
 export interface Delivery {
   ballId: string;
@@ -75,7 +80,6 @@ export interface Delivery {
 
 /**
  * Represents the complete state of a single innings.
- * ✨ CHANGE: `undoStack` has been removed as it will now be a subcollection.
  */
 export interface Innings {
   battingTeamId: string | null;
@@ -85,9 +89,8 @@ export interface Innings {
   wickets: number;
   overs: number;
   ballsInOver: number;
-  battingStats: Batsman[];
+  battingStats: BattingStat[]; // ✨ UPDATED: Now uses BattingStat
   bowlingStats: Bowler[];
-  deliveryHistory: Delivery[];
 }
 
 /**
@@ -98,6 +101,12 @@ export interface MatchRules {
     playersPerTeam: number;
     maxOversPerBowler: number;
     customRulesText: string;
+}
+
+// ✨ ADDED: A dedicated type for match awards.
+export interface MatchAwards {
+  bestBatsmanId: string | null;
+  topWicketTakerId: string | null;
 }
 
 /**
@@ -118,6 +127,7 @@ export interface MatchData {
   rules: MatchRules;
   innings1: Innings;
   innings2: Innings;
+  awards?: MatchAwards; // ✨ ADDED: Awards object
 }
 
 /**
