@@ -78,6 +78,22 @@ export const updateMatch = async (matchId: string, data: { [key: string]: any })
 };
 
 /**
+ * Updates the last delivery in the delivery history subcollection.
+ * This function assumes that the last delivery is the most recent one based on 'ballId'.
+ */
+export const updateLastDelivery = async (matchId: string, inningsNum: number, data: object) => {
+  const historyRef = collection(db, 'matches', matchId, `innings${inningsNum}_deliveryHistory`);
+  // Query for the most recent delivery
+  const q = query(historyRef, orderBy('ballId', 'desc'), limit(1));
+  const snapshot = await getDocs(q);
+
+  if (!snapshot.empty) {
+    const lastDeliveryDoc = snapshot.docs[0];
+    await updateDoc(lastDeliveryDoc.ref, data);
+  }
+};
+
+/**
  * Adds a detailed delivery object as a new document in a subcollection.
  */
 export const addDeliveryToHistory = async (matchId: string, inningsNum: number, deliveryData: Delivery) => {

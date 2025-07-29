@@ -2,7 +2,7 @@
 // This custom hook is the "brain" of the scoring interface.
 // It is responsible for ALL data fetching and ALL data modification logic.
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 // --- Services ---
@@ -17,6 +17,7 @@ import {
   addStateToUndoStack,
   getLatestUndoState,
   deleteFromUndoStack,
+  updateLastDelivery
 } from '../services/firestoreService';
 
 // --- Logic Utilities ---
@@ -187,6 +188,11 @@ const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWick
     if (!matchData) return;
     let updatedData = processWicket(matchData, type, batsmanId, fielderId);
     await updateMatch(matchId, updatedData);
+
+    // Update the last delivery with detailed wicket info
+  const wicketDetails = { type, batsmanId, ...(fielderId && { fielderId }) };
+  await updateLastDelivery(matchId, matchData.currentInnings, { wicketInfo: wicketDetails });
+
     
     const currentInnings = updatedData.currentInnings === 1 ? updatedData.innings1 : updatedData.innings2;
     if (currentInnings.wickets >= (updatedData.rules.playersPerTeam - 1)) {
