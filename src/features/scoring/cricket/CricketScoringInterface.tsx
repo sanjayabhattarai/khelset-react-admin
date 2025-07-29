@@ -72,20 +72,29 @@ export function CricketScoringInterface({ matchId }: CricketScoringProps) {
   // --- UI WRAPPER HANDLERS ---
   // These functions call the logic from the hook and then update the local UI state.
   
-  const onDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: boolean, extraType?: ExtraType) => {
-    if (isUpdating) return;
-    setIsUpdating(true);
-    try {
-      const result = await handleDelivery(runs, isLegal, isWicket, extraType);
-      if (result?.isWicketFallen) {
-        setWicketInfo({ batsmanId: matchData!.onStrikeBatsmanId! });
-        setUiState('selecting_wicket_type');
-      } else if (result?.isOverComplete) {
-        setUiState('selecting_next_bowler');
-      }
-    } catch (e) { console.error("Failed to process delivery:", e); }
-    finally { setIsUpdating(false); }
-  }, [handleDelivery, isUpdating, matchData]);
+  // This function is now just a simple wrapper.
+const onDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: boolean, extraType?: ExtraType) => {
+  if (isUpdating) return;
+  setIsUpdating(true);
+  try {
+    // 1. Call the powerful handleDelivery function from the hook
+    const result = await handleDelivery(runs, isLegal, isWicket, extraType);
+
+    // 2. Update the local UI state based on the result
+    if (result?.isWicketFallen) {
+      setWicketInfo({ batsmanId: matchData!.onStrikeBatsmanId! });
+      setUiState('selecting_wicket_type');
+    } else if (result?.isOverComplete) {
+      setUiState('selecting_next_bowler');
+    }
+    // If the innings is over, the useEffect will handle the state change automatically
+    
+  } catch (e) { 
+    console.error("Failed to process delivery:", e);
+  } finally {
+    setIsUpdating(false);
+  }
+}, [handleDelivery, isUpdating, matchData]);
 
   const onWicket = useCallback(() => {
     onDelivery(0, true, true);

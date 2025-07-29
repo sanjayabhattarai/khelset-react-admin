@@ -24,6 +24,7 @@ import {
 import { processDelivery } from '../logic/scoringUtils';
 import { processWicket } from '../logic/dismissalUtils';
 import { calculateMatchAwards } from '../logic/awardsUtils';
+import { processEndOfOver } from '../logic/overUtils';
 
 // --- Types ---
 import { MatchData, Player, Innings, Bowler, BattingStat, Wicket, ExtraType, WicketType, Delivery } from '../types';
@@ -131,26 +132,34 @@ export const useMatchData = (matchId: string) => {
     }
   }, [matchData, matchId]);
 
-  // In useMatchData.ts, replace the existing handleDelivery function
+  // In useMatchData.ts
 
 const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: boolean, extraType?: ExtraType) => {
   if (!matchData) throw new Error("Match data not available");
 
-  // Save the current state for the Undo feature BEFORE processing the new ball.
   await addStateToUndoStack(matchId, matchData.currentInnings, JSON.stringify(matchData));
 
-  // Use the utility function to calculate the new state of the match.
-  const result = processDelivery(matchData, { runs, isLegal, isWicket, extraType });
-  
-  // ✨ FIX IS HERE: This is the complete logic to build the deliveryLog object ✨
-  const currentInnings = matchData.currentInnings === 1 ? matchData.innings1 : matchData.innings2;
+  let result = processDelivery(matchData, { runs, isLegal, isWicket, extraType });
+  let dataToSave = result.updatedData;
+
+  if (result.isOverComplete && !result.isInningsOver) {
+    // This now works because of the import you added.
+    dataToSave = processEndOfOver(result.updatedData);
+  }
+
+  // ✨ FIX: Define the missing variables here
   const batsmanRuns = (isLegal && !extraType) ? runs : 0;
   const extraRunsValue = (extraType === 'wide' || extraType === 'no_ball') ? 1 + runs : (extraType ? runs : 0);
-  
+
+  const updatedInnings = dataToSave.currentInnings === 1 ? dataToSave.innings1 : dataToSave.innings2;
+  const updatedBowler = updatedInnings.bowlingStats.find(b => b.isCurrent === true);
+  const overNumber = updatedBowler ? Math.floor(updatedBowler.overs) : 0;
+  const ballInOver = updatedBowler ? Math.round((updatedBowler.overs - overNumber) * 10) : 0;
+
   const deliveryLog: Delivery = {
       ballId: uuidv4(),
-      overNumber: Math.floor(currentInnings.overs),
-      ballInOver: currentInnings.ballsInOver + 1,
+      overNumber,
+      ballInOver,
       batsmanId: matchData.onStrikeBatsmanId!,
       bowlerId: matchData.currentBowlerId!,
       runsScored: { 
@@ -160,24 +169,17 @@ const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWick
       },
       isWicket: result.isWicketFallen,
       isLegal,
-      // Conditionally add extraType if it exists
       ...(extraType && { extraType }),
-      // Wicket details can be added here later if needed
       ...(result.isWicketFallen && { wicketInfo: null }),
   };
-
-  // Add the new delivery to its own subcollection.
+  
   await addDeliveryToHistory(matchId, matchData.currentInnings, deliveryLog);
+  await updateMatch(matchId, dataToSave);
 
-  // Update the main match document with the new state
-  await updateMatch(matchId, result.updatedData);
-
-  // If the innings is over, trigger the end-of-innings logic
   if (result.isInningsOver) {
     await handleInningsEnd();
   }
   
-  // Return the outcome so the UI component can react (e.g., show a modal).
   return result;
 }, [matchData, matchId, handleInningsEnd]);
   

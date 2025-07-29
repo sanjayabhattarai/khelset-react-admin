@@ -88,7 +88,6 @@ export interface Innings {
   score: number;
   wickets: number;
   overs: number;
-  ballsInOver: number;
   battingStats: BattingStat[]; // ✨ UPDATED: Now uses BattingStat
   bowlingStats: Bowler[];
 }
