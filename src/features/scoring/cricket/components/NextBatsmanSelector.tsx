@@ -37,7 +37,7 @@ export function NextBatsmanSelector({
         ))}
       </select>
 
-      {/* The confirm button is disabled until a selection is made. */}
+      {/* The confirm button is disabled until a selection is made */}
       <button
         onClick={() => selectedId && onSelect(selectedId)}
         className="w-full p-2 bg-green-600 rounded-md font-bold disabled:bg-gray-500 disabled:cursor-not-allowed"
