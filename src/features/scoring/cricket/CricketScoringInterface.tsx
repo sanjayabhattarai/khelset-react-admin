@@ -100,18 +100,20 @@ const onDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: 
     onDelivery(0, true, true);
   }, [onDelivery]);
 
-  const onWicketConfirm = useCallback(async (type: WicketType, fielderId?: string) => {
-    if (!wicketInfo) return;
-    setIsUpdating(true);
-    try {
-      await handleWicketConfirm(type, wicketInfo.batsmanId, fielderId);
-      setUiState('selecting_next_batsman');
-    } catch (e) { console.error("Failed to confirm wicket:", e); }
-    finally {
-      setWicketInfo(null);
-      setIsUpdating(false);
-    }
-  }, [handleWicketConfirm, wicketInfo]);
+ // ✨ UPDATE this wrapper function to pass the 'runsScored' value
+const onWicketConfirm = useCallback(async (type: WicketType, fielderId: string | undefined, runsScored: number) => {
+  if (!wicketInfo) return;
+  setIsUpdating(true);
+  try {
+    // Pass all the arguments to the hook's handler
+    await handleWicketConfirm(type, wicketInfo.batsmanId, fielderId, runsScored);
+    setUiState('selecting_next_batsman');
+  } catch (e) { console.error("Failed to confirm wicket:", e); }
+  finally {
+    setWicketInfo(null);
+    setIsUpdating(false);
+  }
+}, [handleWicketConfirm, wicketInfo]);
 
   const onNextBatsmanSelect = useCallback(async (batsmanId: string) => {
     await handleSetNextBatsman(batsmanId);

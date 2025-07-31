@@ -184,21 +184,26 @@ const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWick
   return result;
 }, [matchData, matchId, handleInningsEnd]);
   
-  const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: string, fielderId?: string) => {
+
+// Change the function signature to accept the new parameter
+const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: string, fielderId?: string, runsScored: number = 0) => {
     if (!matchData) return;
-    let updatedData = processWicket(matchData, type, batsmanId, fielderId);
-    await updateMatch(matchId, updatedData);
 
-    // Update the last delivery with detailed wicket info
-  const wicketDetails = { type, batsmanId, ...(fielderId && { fielderId }) };
-  await updateLastDelivery(matchId, matchData.currentInnings, { wicketInfo: wicketDetails });
+    // First, process the delivery for the runs that were scored.
+    // We pass 'isWicket: true' to ensure the ball is counted correctly.
+    const deliveryResult = processDelivery(matchData, { runs: runsScored, isLegal: true, isWicket: true });
 
-    
-    const currentInnings = updatedData.currentInnings === 1 ? updatedData.innings1 : updatedData.innings2;
-    if (currentInnings.wickets >= (updatedData.rules.playersPerTeam - 1)) {
+    // Then, process the dismissal details on the result of the delivery.
+    let finalData = processWicket(deliveryResult.updatedData, type, batsmanId, fielderId);
+
+    // Save the final, combined result to Firestore.
+    await updateMatch(matchId, finalData);
+
+    const currentInnings = finalData.currentInnings === 1 ? finalData.innings1 : finalData.innings2;
+    if (currentInnings.wickets >= (finalData.rules.playersPerTeam - 1)) {
         await handleInningsEnd();
     }
-  }, [matchData, matchId, handleInningsEnd]);
+}, [matchData, matchId, handleInningsEnd]);
   
   const handleSetNextBatsman = useCallback(async (batsmanId: string) => {
     if (!matchData) return;

@@ -129,6 +129,16 @@ export interface MatchData {
   awards?: MatchAwards; // ✨ ADDED: Awards object
 }
 
+export interface Team {
+  id: string;
+  name: string;
+  status: string;
+  eventId: string;
+  captainId: string;
+  players: string[]; // This is an array of player document IDs
+}
+
+
 /**
  * Defines all the possible states our UI can be in.
  */

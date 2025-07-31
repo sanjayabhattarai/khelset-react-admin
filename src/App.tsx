@@ -1,16 +1,19 @@
 // src/App.tsx
-
-// Import the custom hook and page components we will create
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { ManageEventPage } from './pages/ManageEventPage';
+import { ManageTeamPage } from './pages/ManageTeamPage';
+import { LiveScoringPage } from './pages/LiveScoringPage';
+// import { ColorTest } from './components/ColorTest';
 
 function App() {
-  // Use our custom hook to get the current user and loading state
   const { user, loading } = useAuth();
 
-  // While the hook is checking the user's login status, show a loading spinner.
-  // This prevents a "flash" of the login screen if the user is already logged in.
+  // Temporary: Show color test for debugging
+  // return <ColorTest />;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-900">
@@ -19,10 +22,17 @@ function App() {
     );
   }
 
-  // This is the core logic:
-  // If the 'user' object exists, show the DashboardPage.
-  // If the 'user' object is null, show the LoginPage.
-  return user ? <DashboardPage /> : <LoginPage />;
+  return (
+    <Routes>
+      <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/dashboard" />} />
+      <Route path="/dashboard" element={user ? <DashboardPage /> : <Navigate to="/login" />} />
+      <Route path="/manage-event/:eventId" element={user ? <ManageEventPage /> : <Navigate to="/login" />} />
+      <Route path="/manage-team/:teamId" element={user ? <ManageTeamPage /> : <Navigate to="/login" />} />
+      <Route path="/live-scoring/:matchId" element={user ? <LiveScoringPage /> : <Navigate to="/login" />} />
+      <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
+  );
 }
 
 export default App;

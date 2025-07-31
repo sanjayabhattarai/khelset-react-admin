@@ -15,7 +15,7 @@ import {
   deleteDoc,
   writeBatch, // Import writeBatch for atomic operations
   setDoc,
-  
+  FieldValue,
 } from 'firebase/firestore';
 import { db } from '../../../../api/firebase'; // Adjust the import path to your firebase config
 import { MatchData, Player, Delivery } from '../types';
@@ -107,6 +107,57 @@ export const addDeliveryToHistory = async (matchId: string, inningsNum: number, 
         throw error;
     }
 };
+
+/**
+ * Adds a player to a team's roster.
+ * This is an atomic operation that updates both the team and player documents.
+ */
+export const addPlayerToTeam = async (teamId: string, playerId: string) => {
+  const batch = writeBatch(db);
+
+  // 1. Add the player's ID to the team's 'players' array
+  const teamDocRef = doc(db, 'teams', teamId);
+  batch.update(teamDocRef, {
+    players: FieldValue.arrayUnion(playerId)
+  });
+
+  // 2. Set the 'teamId' on the player's document
+  const playerDocRef = doc(db, 'players', playerId);
+  batch.update(playerDocRef, { teamId: teamId });
+
+  await batch.commit();
+};
+
+/**
+ * Removes a player from a team's roster.
+ * This is an atomic operation that updates both the team and player documents.
+ */
+export const removePlayerFromTeam = async (teamId: string, playerId: string) => {
+  const batch = writeBatch(db);
+
+  // 1. Remove the player's ID from the team's 'players' array
+  const teamDocRef = doc(db, 'teams', teamId);
+  batch.update(teamDocRef, {
+    players: FieldValue.arrayRemove(playerId)
+  });
+
+  // 2. Set the 'teamId' on the player's document back to null
+  const playerDocRef = doc(db, 'players', playerId);
+  batch.update(playerDocRef, { teamId: null });
+
+  await batch.commit();
+};
+
+
+/**
+ * Fetches all players who are not currently assigned to any team.
+ */
+export const getAvailablePlayers = async (): Promise<Player[]> => {
+    const playersQuery = query(collection(db, 'players'), where('teamId', '==', null));
+    const snapshot = await getDocs(playersQuery);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Player));
+};
+
 
 /**
  * Saves the entire match state as a new document in the undoStack subcollection

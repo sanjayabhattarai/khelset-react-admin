@@ -1,19 +1,22 @@
 // src/features/events/MatchListItem.tsx
+// This component has been rewritten to use react-router-dom for navigation.
+// It no longer uses the 'onStartScoring' prop.
 
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom'; // 1. Import the Link component
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../api/firebase';
 
+// ✨ FIX: The onStartScoring prop is removed from the interface.
 interface MatchListItemProps {
-  match: { // This component receives the match data as a prop
+  match: {
     id: string;
     teamA_id: string;
     teamB_id: string;
   };
-  onStartScoring: (matchId: string) => void; // Function to handle the button click
 }
 
-export function MatchListItem({ match, onStartScoring }: MatchListItemProps) {
+export function MatchListItem({ match }: MatchListItemProps) {
   // State to hold the fetched team names
   const [teamAName, setTeamAName] = useState('Team A');
   const [teamBName, setTeamBName] = useState('Team B');
@@ -46,12 +49,15 @@ export function MatchListItem({ match, onStartScoring }: MatchListItemProps) {
       ) : (
         <p className="font-semibold text-white">{teamAName} vs {teamBName}</p>
       )}
-      <button
+      
+      {/* ✨ FIX: The <button> is replaced with a <Link> component. */}
+      {/* This creates a proper navigation link to the live scoring page. */}
+      <Link
+        to={`/live-scoring/${match.id}`}
         className="px-3 py-1 text-sm bg-green-600 hover:bg-green-700 rounded-md"
-        onClick={() => onStartScoring(match.id)}
       >
         Start Scoring
-      </button>
+      </Link>
     </li>
   );
 }
