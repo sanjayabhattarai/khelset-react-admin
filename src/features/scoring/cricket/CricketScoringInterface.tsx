@@ -32,7 +32,7 @@ export function CricketScoringInterface({ matchId }: CricketScoringProps) {
   const {
     loading, error, matchData, teamAPlayers, teamBPlayers, teamAName, teamBName,
     currentInningsData, onStrikeBatsman, nonStrikeBatsman, currentBowler,
-    bowlingTeamPlayers, availableBatsmen,
+    bowlingTeamPlayers, availableBatsmen, currentBatsmen,
     handleTossComplete,
     handlePlayerSelectionComplete,
     handleDelivery,
@@ -73,18 +73,19 @@ export function CricketScoringInterface({ matchId }: CricketScoringProps) {
   // These functions call the logic from the hook and then update the local UI state.
   
   // This function is now just a simple wrapper.
-const onDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: boolean, extraType?: ExtraType) => {
+const onDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: boolean, extraType?: ExtraType, wicketType?: WicketType, runType?: 'hit' | 'bye' | 'leg_bye') => {
   if (isUpdating) return;
   setIsUpdating(true);
   try {
     // 1. Call the powerful handleDelivery function from the hook
-    const result = await handleDelivery(runs, isLegal, isWicket, extraType);
+    const result = await handleDelivery(runs, isLegal, isWicket, extraType, wicketType, runType);
 
     // 2. Update the local UI state based on the result
     if (result?.isWicketFallen) {
       setWicketInfo({ batsmanId: matchData!.onStrikeBatsmanId! });
       setUiState('selecting_wicket_type');
-    } else if (result?.isOverComplete) {
+    } else if (result?.isOverComplete && !result?.isInningsOver) {
+      // FIXED: Only ask for next bowler if over is complete but innings is NOT over
       setUiState('selecting_next_bowler');
     }
     // If the innings is over, the useEffect will handle the state change automatically
@@ -97,16 +98,21 @@ const onDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: 
 }, [handleDelivery, isUpdating, matchData]);
 
   const onWicket = useCallback(() => {
-    onDelivery(0, true, true);
-  }, [onDelivery]);
+    // FIXED: Just trigger wicket selection without processing delivery
+    // This avoids double wicket counting
+    setWicketInfo({ batsmanId: matchData?.onStrikeBatsmanId || '' });
+    setUiState('selecting_wicket_type');
+  }, [matchData]);
 
- // ✨ UPDATE this wrapper function to pass the 'runsScored' value
-const onWicketConfirm = useCallback(async (type: WicketType, fielderId: string | undefined, runsScored: number) => {
+ // ✨ Keep runsScored parameter for interface compatibility but don't use it
+const onWicketConfirm = useCallback(async (type: WicketType, fielderId: string | undefined, _runsScored: number, batsmanId?: string) => {
   if (!wicketInfo) return;
   setIsUpdating(true);
   try {
-    // Pass all the arguments to the hook's handler
-    await handleWicketConfirm(type, wicketInfo.batsmanId, fielderId, runsScored);
+    // For run-outs, use the selected batsman ID, otherwise use the original wicketInfo batsmanId
+    const finalBatsmanId = (type === 'run_out' && batsmanId) ? batsmanId : wicketInfo.batsmanId;
+    // FIXED: Don't pass runsScored since they're already processed in the original delivery
+    await handleWicketConfirm(type, finalBatsmanId, fielderId);
     setUiState('selecting_next_batsman');
   } catch (e) { console.error("Failed to confirm wicket:", e); }
   finally {
@@ -146,7 +152,7 @@ const onWicketConfirm = useCallback(async (type: WicketType, fielderId: string |
       case 'scoring':
         return <ScoringPanel isUpdating={isUpdating} onDelivery={onDelivery} onWicket={onWicket} onUndo={handleUndo} canUndo={true} />;
       case 'selecting_wicket_type':
-        return <WicketModal fielders={bowlingTeamPlayers ?? []} onSelect={onWicketConfirm} onCancel={() => setUiState('scoring')} />;
+        return <WicketModal fielders={bowlingTeamPlayers ?? []} currentBatsmen={currentBatsmen ?? []} onSelect={onWicketConfirm} onCancel={() => setUiState('scoring')} />;
       case 'selecting_next_batsman':
         return <NextBatsmanSelector availableBatsmen={availableBatsmen ?? []} onSelect={onNextBatsmanSelect} />;
       case 'selecting_next_bowler':

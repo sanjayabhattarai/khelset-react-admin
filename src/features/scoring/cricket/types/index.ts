@@ -88,6 +88,7 @@ export interface Innings {
   score: number;
   wickets: number;
   overs: number;
+  ballsInOver: number; // Track balls in current over (0-5)
   battingStats: BattingStat[]; // ✨ UPDATED: Now uses BattingStat
   bowlingStats: Bowler[];
 }

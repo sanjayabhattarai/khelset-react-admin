@@ -5,11 +5,13 @@
 import { useState } from 'react';
 import { ExtraType } from '../types';
 import { ExtrasModal } from './ExtrasModal';
+import { WideNoBallModal } from './WideNoBallModal';
+import { NoBallModal } from './NoBallModal';
 
-// The props interface remains the same, as the component's functionality has not changed.
+// The props interface - we'll need to extend this to support runType
 interface ScoringPanelProps {
   isUpdating: boolean;
-  onDelivery: (runs: number, isLegal: boolean, isWicket: boolean, extraType?: ExtraType) => void;
+  onDelivery: (runs: number, isLegal: boolean, isWicket: boolean, extraType?: ExtraType, wicketType?: any, runType?: 'hit' | 'bye' | 'leg_bye') => void;
   onWicket: () => void;
   onUndo: () => void;
   canUndo: boolean;
@@ -20,9 +22,19 @@ export function ScoringPanel({ isUpdating, onDelivery, onWicket, onUndo, canUndo
   // This is your existing logic for handling the extras modal for byes/leg-byes.
   // It has not been changed.
   const [extrasModalType, setExtrasModalType] = useState<'bye' | 'leg_bye' | null>(null);
+  const [wideModalOpen, setWideModalOpen] = useState(false);
+  const [noBallModalOpen, setNoBallModalOpen] = useState(false);
 
   const handleExtrasClick = (type: 'bye' | 'leg_bye') => {
     setExtrasModalType(type);
+  };
+
+  const handleWideClick = () => {
+    setWideModalOpen(true);
+  };
+
+  const handleNoBallClick = () => {
+    setNoBallModalOpen(true);
   };
 
   const handleExtrasConfirm = (runs: number) => {
@@ -30,6 +42,30 @@ export function ScoringPanel({ isUpdating, onDelivery, onWicket, onUndo, canUndo
       onDelivery(runs, true, false, extrasModalType);
     }
     setExtrasModalType(null);
+  };
+
+  const handleWideConfirm = (additionalRuns: number, triggerWicket: boolean) => {
+    // For wide balls: penalty + runs, all to extras
+    // FIXED: Do NOT process wicket here to avoid double counting
+    onDelivery(additionalRuns, false, false, 'wide', undefined, undefined);
+    setWideModalOpen(false);
+    
+    // If wicket was requested, trigger the wicket modal separately
+    if (triggerWicket) {
+      onWicket();
+    }
+  };
+
+  const handleNoBallConfirm = (additionalRuns: number, runType: 'hit' | 'bye' | 'leg_bye', triggerWicket: boolean) => {
+    // For no-balls: penalty + runs, attribution depends on runType
+    // FIXED: Do NOT process wicket here to avoid double counting
+    onDelivery(additionalRuns, false, false, 'no_ball', undefined, runType);
+    setNoBallModalOpen(false);
+    
+    // If wicket was requested, trigger the wicket modal separately
+    if (triggerWicket) {
+      onWicket();
+    }
   };
 
   // This is your existing logic for handling custom run amounts.
@@ -83,8 +119,8 @@ export function ScoringPanel({ isUpdating, onDelivery, onWicket, onUndo, canUndo
 
         {/* Extras buttons with distinct colors for better visual grouping */}
         <div className="grid grid-cols-4 gap-3 mt-3">
-          <ScoringButton onClick={() => onDelivery(0, false, false, 'wide')} disabled={isUpdating} className="bg-yellow-500 hover:bg-yellow-600 text-black">WD</ScoringButton>
-          <ScoringButton onClick={() => onDelivery(0, false, false, 'no_ball')} disabled={isUpdating} className="bg-yellow-500 hover:bg-yellow-600 text-black">NB</ScoringButton>
+          <ScoringButton onClick={handleWideClick} disabled={isUpdating} className="bg-yellow-500 hover:bg-yellow-600 text-black">WD</ScoringButton>
+          <ScoringButton onClick={handleNoBallClick} disabled={isUpdating} className="bg-yellow-500 hover:bg-yellow-600 text-black">NB</ScoringButton>
           {/* ✨ PURPLE BUTTONS AS REQUESTED ✨ */}
           <ScoringButton onClick={() => handleExtrasClick('bye')} disabled={isUpdating} className="bg-orange-500 hover:bg-orange-600">BYE</ScoringButton>
           <ScoringButton onClick={() => handleExtrasClick('leg_bye')} disabled={isUpdating} className="bg-orange-500 hover:bg-orange-600">LB</ScoringButton>
@@ -105,6 +141,27 @@ export function ScoringPanel({ isUpdating, onDelivery, onWicket, onUndo, canUndo
             extraType={extrasModalType}
             onSelect={handleExtrasConfirm}
             onCancel={() => setExtrasModalType(null)}
+          />
+        </div>
+      )}
+
+      {/* Wide Ball Modal */}
+      {wideModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <WideNoBallModal
+            extraType="wide"
+            onSelect={handleWideConfirm}
+            onCancel={() => setWideModalOpen(false)}
+          />
+        </div>
+      )}
+
+      {/* No Ball Modal - Enhanced modal for handling different run types */}
+      {noBallModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <NoBallModal
+            onSelect={handleNoBallConfirm}
+            onCancel={() => setNoBallModalOpen(false)}
           />
         </div>
       )}

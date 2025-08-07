@@ -16,19 +16,18 @@ import {
   addDeliveryToHistory,
   addStateToUndoStack,
   getLatestUndoState,
-  deleteFromUndoStack,
-  updateLastDelivery
+  deleteFromUndoStack
 } from '../services/firestoreService';
 
 // --- Logic Utilities ---
 // It uses pure utility functions for complex rule calculations.
-import { processDelivery } from '../logic/scoringUtils';
+import { processEnhancedDelivery } from '../logic/enhancedScoringUtils';
 import { processWicket } from '../logic/dismissalUtils';
 import { calculateMatchAwards } from '../logic/awardsUtils';
 import { processEndOfOver } from '../logic/overUtils';
 
 // --- Types ---
-import { MatchData, Player, Innings, Bowler, BattingStat, Wicket, ExtraType, WicketType, Delivery } from '../types';
+import { MatchData, Player, Bowler, BattingStat, ExtraType, WicketType, Delivery } from '../types';
 
 /**
  * A custom hook to fetch and manage all data and actions for a given match ID.
@@ -135,27 +134,44 @@ export const useMatchData = (matchId: string) => {
 
   // In useMatchData.ts
 
-const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: boolean, extraType?: ExtraType) => {
+const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: boolean, extraType?: ExtraType, wicketType?: WicketType, runType?: 'hit' | 'bye' | 'leg_bye') => {
   if (!matchData) throw new Error("Match data not available");
 
   await addStateToUndoStack(matchId, matchData.currentInnings, JSON.stringify(matchData));
 
-  let result = processDelivery(matchData, { runs, isLegal, isWicket, extraType });
+  // Use enhanced delivery processing for better cricket rules handling
+  let result = processEnhancedDelivery(matchData, { runs, isLegal, isWicket, extraType, wicketType, runType });
   let dataToSave = result.updatedData;
 
   if (result.isOverComplete && !result.isInningsOver) {
-    // This now works because of the import you added.
+    // Process end of over normally (rotate strike, set next bowler to null)
     dataToSave = processEndOfOver(result.updatedData);
+  } else if (result.isInningsOver) {
+    // FIXED: When innings ends, ensure currentBowlerId is null so UI doesn't ask for next bowler
+    dataToSave.currentBowlerId = null;
+    dataToSave.previousBowlerId = matchData.currentBowlerId;
   }
 
-  // ✨ FIX: Define the missing variables here
-  const batsmanRuns = (isLegal && !extraType) ? runs : 0;
-  const extraRunsValue = (extraType === 'wide' || extraType === 'no_ball') ? 1 + runs : (extraType ? runs : 0);
+  // Use the enhanced result's run breakdown for accurate delivery logging
+  const runsBreakdown = result.runsBreakdown || {
+    batsmanRuns: (isLegal && !extraType) ? runs : 0,
+    extraRuns: (extraType === 'wide' || extraType === 'no_ball') ? 1 + runs : (extraType ? runs : 0),
+    totalRuns: runs,
+    penaltyRuns: 0
+  };
 
   const updatedInnings = dataToSave.currentInnings === 1 ? dataToSave.innings1 : dataToSave.innings2;
-  const updatedBowler = updatedInnings.bowlingStats.find(b => b.isCurrent === true);
+  const updatedBowler = updatedInnings.bowlingStats.find((b: any) => b.isCurrent === true);
   const overNumber = updatedBowler ? Math.floor(updatedBowler.overs) : 0;
   const ballInOver = updatedBowler ? Math.round((updatedBowler.overs - overNumber) * 10) : 0;
+
+  // Build wicket info conditionally to avoid undefined values
+  const wicketInfo = result.isWicketFallen && wicketType ? {
+    type: wicketType,
+    batsmanId: matchData.onStrikeBatsmanId!,
+    // Only include fielderId if it has a valid value (not for run-outs from wide/no-ball extras)
+    // fielderId will be added by WicketModal for actual fielder-involved dismissals
+  } : null;
 
   const deliveryLog: Delivery = {
       ballId: uuidv4(),
@@ -164,14 +180,14 @@ const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWick
       batsmanId: matchData.onStrikeBatsmanId!,
       bowlerId: matchData.currentBowlerId!,
       runsScored: { 
-        batsman: batsmanRuns, 
-        extras: extraRunsValue, 
-        total: batsmanRuns + extraRunsValue 
+        batsman: runsBreakdown.batsmanRuns, 
+        extras: runsBreakdown.extraRuns, 
+        total: runsBreakdown.totalRuns 
       },
       isWicket: result.isWicketFallen,
       isLegal,
       ...(extraType && { extraType }),
-      ...(result.isWicketFallen && { wicketInfo: null }),
+      ...(wicketInfo && { wicketInfo }),
   };
   
   await addDeliveryToHistory(matchId, matchData.currentInnings, deliveryLog);
@@ -185,21 +201,33 @@ const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWick
 }, [matchData, matchId, handleInningsEnd]);
   
 
-// Change the function signature to accept the new parameter
-const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: string, fielderId?: string, runsScored: number = 0) => {
+// FIXED: Process wicket properly including the delivery ball count
+const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: string, fielderId?: string) => {
     if (!matchData) return;
 
-    // First, process the delivery for the runs that were scored.
-    // We pass 'isWicket: true' to ensure the ball is counted correctly.
-    const deliveryResult = processDelivery(matchData, { runs: runsScored, isLegal: true, isWicket: true });
-
-    // Then, process the dismissal details on the result of the delivery.
+    // CRITICAL FIX: When a wicket falls, it's still a legal delivery that should count
+    // We need to process the delivery first, then the wicket dismissal
+    
+    // Step 1: Process the delivery (0 runs, legal delivery, with wicket)
+    const deliveryResult = processEnhancedDelivery(matchData, {
+      runs: 0,
+      isLegal: true,
+      isWicket: true,
+      wicketType: type
+    });
+    
+    // Step 2: Process the wicket dismissal (batsman positioning)
     let finalData = processWicket(deliveryResult.updatedData, type, batsmanId, fielderId);
+    
+    // FIXED: Don't increment wicket counts here - processWicket and processEnhancedDelivery handle all wicket counting
+    
+    // Get current innings for checking end conditions
+    const currentInnings = finalData.currentInnings === 1 ? finalData.innings1 : finalData.innings2;
 
-    // Save the final, combined result to Firestore.
+    // Save the final result to Firestore
     await updateMatch(matchId, finalData);
 
-    const currentInnings = finalData.currentInnings === 1 ? finalData.innings1 : finalData.innings2;
+    // Check if innings is over
     if (currentInnings.wickets >= (finalData.rules.playersPerTeam - 1)) {
         await handleInningsEnd();
     }
@@ -215,7 +243,22 @@ const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: stri
     const newBatsman: BattingStat = { id: batsmanId, name: allPlayers.find(p => p.id === batsmanId)?.name || 'Unknown', runs: 0, balls: 0, fours: 0, sixes: 0, status: 'not_out' };
     
     const updatedBattingStats = [...currentInnings.battingStats, newBatsman];
-    await updateMatch(matchId, { onStrikeBatsmanId: batsmanId, [`${inningsKey}.battingStats`]: updatedBattingStats });
+    
+    // FIXED: Determine which position (strike/non-strike) needs to be filled
+    const updateData: any = { [`${inningsKey}.battingStats`]: updatedBattingStats };
+    
+    if (matchData.onStrikeBatsmanId === null) {
+      // On-strike position is vacant, place new batsman there
+      updateData.onStrikeBatsmanId = batsmanId;
+    } else if (matchData.nonStrikeBatsmanId === null) {
+      // Non-strike position is vacant, place new batsman there
+      updateData.nonStrikeBatsmanId = batsmanId;
+    } else {
+      // Fallback: if somehow both positions are filled, replace on-strike
+      updateData.onStrikeBatsmanId = batsmanId;
+    }
+    
+    await updateMatch(matchId, updateData);
   }, [matchId, matchData, teamAPlayers, teamBPlayers]);
   
   const handleSetNextBowler = useCallback(async (newBowlerId: string) => {
@@ -270,6 +313,19 @@ const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: stri
     const battingTeamId = innings?.battingTeamId;
     const battingTeam = matchData.teamA_id === battingTeamId ? teamAPlayers : teamBPlayers;
     const availableBatsmen = battingTeam.filter(p => !battingStats.some(b => b.id === p.id));
+    
+    // Current batsmen who can be run out (both on-strike and non-strike)
+    const currentBatsmen = [
+      battingStats.find(p => p.id === matchData.onStrikeBatsmanId),
+      battingStats.find(p => p.id === matchData.nonStrikeBatsmanId)
+    ].filter(Boolean).map(stat => {
+      const player = battingTeam.find(p => p.id === stat!.id);
+      return { 
+        id: stat!.id, 
+        name: player?.name || stat!.name,
+        role: player?.role || 'Batsman' // Default role if not found
+      };
+    });
 
     return {
       currentInningsData: innings,
@@ -279,6 +335,7 @@ const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: stri
       battingTeamPlayers: battingTeam,
       bowlingTeamPlayers: matchData.teamA_id === battingTeamId ? teamBPlayers : teamAPlayers,
       availableBatsmen,
+      currentBatsmen, // NEW: Both batsmen currently at the crease who can be run out
     };
   }, [matchData, teamAPlayers, teamBPlayers]);
 

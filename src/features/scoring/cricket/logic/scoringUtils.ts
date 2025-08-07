@@ -5,7 +5,7 @@
 import { MatchData, Innings } from '../types';
 
 export interface DeliveryParams {
-  runs: number;
+  runs: number; // Additional runs scored by batsmen (for extras, this is runs beyond the penalty)
   isLegal: boolean;
   isWicket?: boolean;
   extraType?: 'wide' | 'no_ball' | 'bye' | 'leg_bye';
@@ -45,23 +45,50 @@ export const processDelivery = (
   }
 
   // --- 1. Update Scores and Extras ---
-  const extraRuns = (extraType === 'wide' || extraType === 'no_ball') ? 1 : 0;
-  innings.score += runs + extraRuns;
-  currentBowler.runs += runs + extraRuns;
+  // Calculate penalty runs (1 for wide/no-ball, 0 for bye/leg-bye)
+  const penaltyRuns = (extraType === 'wide' || extraType === 'no_ball') ? 1 : 0;
+  
+  // Total runs = penalty + runs taken by batsmen
+  const totalRuns = penaltyRuns + runs;
+  
+  // Update team score and bowler's runs conceded
+  innings.score += totalRuns;
+  currentBowler.runs += totalRuns;
 
   // --- 2. Update Batsman Stats ---
-  if (extraType !== 'wide') onStrikeBatsman.balls += 1;
-  if (isLegal && !extraType) onStrikeBatsman.runs += runs;
+  // For wides, batsman doesn't face the ball (no ball count increment)
+  // For no-balls, batsman faces the ball but it doesn't count towards balls faced
+  // For byes/leg-byes, it's a legal delivery so batsman faces it
+  if (extraType !== 'wide') {
+    onStrikeBatsman.balls += 1;
+  }
+  
+  // Batsman gets credit for runs only if they actually hit/ran for them
+  // For byes/leg-byes: batsman doesn't get runs (they're extras)
+  // For wides: batsman doesn't get runs (they're extras) 
+  // For no-balls: batsman gets runs if they hit it
+  if (extraType === 'no_ball' || (!extraType && isLegal)) {
+    onStrikeBatsman.runs += runs;
+    
+    // Count boundaries for batsman stats
+    if (runs === 4) onStrikeBatsman.fours += 1;
+    if (runs === 6) onStrikeBatsman.sixes += 1;
+  }
 
   // --- 3. Handle Strike Rotation ---
-  if (isLegal && runs % 2 === 1) {
+  // Strike changes when batsmen run odd number of runs
+  // This applies to all extras where batsmen can run (wide, no-ball, bye, leg-bye)
+  if (runs > 0 && runs % 2 === 1) {
     [updatedData.onStrikeBatsmanId, updatedData.nonStrikeBatsmanId] = 
       [updatedData.nonStrikeBatsmanId, updatedData.onStrikeBatsmanId];
   }
 
   // --- 4. Handle Over Progression ---
   let isOverComplete = false;
-  if (isLegal) {
+  
+  // Only legal deliveries count towards over completion
+  // Wides and no-balls don't count, must be re-bowled
+  if (isLegal || extraType === 'bye' || extraType === 'leg_bye') {
     innings.ballsInOver += 1;
     
     // ✨ FIX: A more robust way to calculate overs to avoid floating point errors.
@@ -74,6 +101,7 @@ export const processDelivery = (
 
     if (innings.ballsInOver >= 6) {
       isOverComplete = true;
+      innings.ballsInOver = 0; // Reset for next over
     }
   }
 
@@ -83,6 +111,14 @@ export const processDelivery = (
     isWicketFallen = true;
     // ✨ FIX: The wicket count for the innings is now correctly incremented here.
     innings.wickets += 1;
+    
+    // Update bowler's wicket count (bowler gets credit except for run-outs)
+    // For wides: only run-out possible (bowler doesn't get wicket)
+    // For no-balls: run-out or stumped possible (bowler doesn't get wicket)
+    // For normal deliveries: bowler gets wicket credit
+    if (extraType !== 'wide' && extraType !== 'no_ball') {
+      currentBowler.wickets += 1;
+    }
   }
 
   // --- 6. Handle Free Hit ---

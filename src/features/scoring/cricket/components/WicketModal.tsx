@@ -5,15 +5,17 @@
 import { useState } from 'react';
 import { Player, WicketType } from '../types';
 
-// ✨ UPDATED: The onSelect function now includes a 'runsScored' parameter.
+// ✨ UPDATED: The onSelect function now includes a 'runsScored' parameter and 'batsmanId' for run-outs.
 interface WicketModalProps {
   fielders: Player[];
-  onSelect: (type: WicketType, fielderId: string | undefined, runsScored: number) => void;
+  currentBatsmen: Player[]; // NEW: Available batsmen who can be run out
+  onSelect: (type: WicketType, fielderId: string | undefined, runsScored: number, batsmanId?: string) => void;
   onCancel: () => void;
 }
 
 export function WicketModal({
   fielders,
+  currentBatsmen,
   onSelect,
   onCancel,
 }: WicketModalProps) {
@@ -22,14 +24,18 @@ export function WicketModal({
   const [fielderId, setFielderId] = useState<string>('');
   // ✨ NEW: State to track runs completed on a run-out.
   const [runsScored, setRunsScored] = useState(0);
+  // ✨ NEW: State to track which batsman got run out
+  const [selectedBatsmanId, setSelectedBatsmanId] = useState<string>('');
 
   // Determine if a fielder is required for the selected dismissal type.
   const needsFielder = ['caught', 'run_out', 'stumped'].includes(wicketType);
+  // Determine if batsman selection is needed (only for run-outs)
+  const needsBatsmanSelection = wicketType === 'run_out';
 
   // --- HANDLERS ---
   const handleConfirm = () => {
-    // Pass all three pieces of information back to the parent.
-    onSelect(wicketType, fielderId || undefined, runsScored);
+    // Pass all information back to the parent, including batsman ID for run-outs
+    onSelect(wicketType, fielderId || undefined, runsScored, selectedBatsmanId || undefined);
   };
 
   return (
@@ -54,6 +60,24 @@ export function WicketModal({
           <option value="retired_hurt">Retired Hurt</option>
         </select>
       </div>
+
+      {/* ✨ NEW: Conditionally show batsman selection ONLY for run outs ✨ */}
+      {needsBatsmanSelection && (
+        <div className="animate-fade-in">
+          <label htmlFor="batsman-select" className="block mb-1 font-semibold">Which batsman got out?</label>
+          <select
+            id="batsman-select"
+            value={selectedBatsmanId}
+            onChange={(e) => setSelectedBatsmanId(e.target.value)}
+            className="w-full bg-gray-700 p-2 rounded border border-gray-600"
+          >
+            <option value="">Select batsman...</option>
+            {currentBatsmen.map((batsman) => (
+              <option key={batsman.id} value={batsman.id}>{batsman.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* ✨ NEW: Conditionally show the runs input ONLY for run outs ✨ */}
       {wicketType === 'run_out' && (
@@ -94,7 +118,7 @@ export function WicketModal({
         <button
           onClick={handleConfirm}
           className="flex-1 p-3 bg-green-600 rounded-md font-bold hover:bg-green-700 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed"
-          disabled={needsFielder && !fielderId}
+          disabled={(needsFielder && !fielderId) || (needsBatsmanSelection && !selectedBatsmanId)}
         >
           Confirm Wicket
         </button>
