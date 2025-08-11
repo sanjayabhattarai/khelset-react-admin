@@ -28,6 +28,7 @@ export function NextBatsmanSelector({
         value={selectedId}
         onChange={(e) => setSelectedId(e.target.value)}
         className="w-full bg-gray-800 p-2 rounded"
+        aria-label="Select next batsman"
       >
         <option value="">Select batsman...</option>
         {availableBatsmen.map((p) => (

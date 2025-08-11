@@ -1,6 +1,5 @@
 // src/pages/ManageEventPage.tsx
-// This page has been rewritten to work with react-router-dom.
-// It gets the eventId from the URL and uses <Link> for navigation.
+// This page has been rewritten to work with react-router-dom and includes user ownership verification.
 
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
@@ -36,7 +35,7 @@ export function ManageEventPage() {
 
   // This useEffect hook sets up the real-time listeners for the data.
   useEffect(() => {
-    if (!eventId) return; // Don't run queries if the eventId is missing
+    if (!eventId) return;
 
     const teamsQuery = query(collection(db, 'teams'), where('eventId', '==', eventId));
     const unsubscribeTeams = onSnapshot(teamsQuery, (snap) => {

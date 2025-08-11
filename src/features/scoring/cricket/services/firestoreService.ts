@@ -15,7 +15,8 @@ import {
   deleteDoc,
   writeBatch, // Import writeBatch for atomic operations
   setDoc,
-  FieldValue,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../../../../api/firebase'; // Adjust the import path to your firebase config
 import { MatchData, Player, Delivery } from '../types';
@@ -118,7 +119,7 @@ export const addPlayerToTeam = async (teamId: string, playerId: string) => {
   // 1. Add the player's ID to the team's 'players' array
   const teamDocRef = doc(db, 'teams', teamId);
   batch.update(teamDocRef, {
-    players: FieldValue.arrayUnion(playerId)
+    players: arrayUnion(playerId)
   });
 
   // 2. Set the 'teamId' on the player's document
@@ -138,7 +139,7 @@ export const removePlayerFromTeam = async (teamId: string, playerId: string) => 
   // 1. Remove the player's ID from the team's 'players' array
   const teamDocRef = doc(db, 'teams', teamId);
   batch.update(teamDocRef, {
-    players: FieldValue.arrayRemove(playerId)
+    players: arrayRemove(playerId)
   });
 
   // 2. Set the 'teamId' on the player's document back to null
@@ -227,14 +228,38 @@ export const deleteFromUndoStack = async (matchId: string, inningsNum: number, d
 
 export const getTeamPlayerIds = async (teamId: string): Promise<string[]> => {
   if (!teamId) return [];
+  console.log('🔍 Fetching team player IDs for teamId:', teamId);
+  
   const teamDocRef = doc(db, 'teams', teamId);
   const teamDoc = await getDoc(teamDocRef);
-  return teamDoc.exists() ? (teamDoc.data().players as string[]) : [];
+  
+  if (teamDoc.exists()) {
+    const teamData = teamDoc.data();
+    console.log('📄 Team data structure:', teamData);
+    
+    // Get playerIds array (optimized structure)
+    if (teamData.playerIds && Array.isArray(teamData.playerIds) && teamData.playerIds.length > 0) {
+      console.log('✅ Found player IDs:', teamData.playerIds);
+      return teamData.playerIds;
+    }
+    
+    console.log('❌ No playerIds found in team');
+    return [];
+  } else {
+    console.log('❌ Team document does not exist for teamId:', teamId);
+    return [];
+  }
 };
 
 export const getPlayerDocs = async (ids: string[]): Promise<Player[]> => {
-  if (!ids || ids.length === 0) return [];
+  if (!ids || ids.length === 0) {
+    console.log('No player IDs provided');
+    return [];
+  }
+  console.log('Fetching player documents for IDs:', ids);
   const playersQuery = query(collection(db, 'players'), where('__name__', 'in', ids));
   const snapshot = await getDocs(playersQuery);
-  return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Player));
+  const players = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Player));
+  console.log('Players found:', players);
+  return players;
 };

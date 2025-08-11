@@ -104,15 +104,15 @@ const onDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: 
     setUiState('selecting_wicket_type');
   }, [matchData]);
 
- // ✨ Keep runsScored parameter for interface compatibility but don't use it
-const onWicketConfirm = useCallback(async (type: WicketType, fielderId: string | undefined, _runsScored: number, batsmanId?: string) => {
+ // Handle wicket confirmation with runs for run-outs
+const onWicketConfirm = useCallback(async (type: WicketType, fielderId: string | undefined, runsScored: number, batsmanId?: string) => {
   if (!wicketInfo) return;
   setIsUpdating(true);
   try {
     // For run-outs, use the selected batsman ID, otherwise use the original wicketInfo batsmanId
     const finalBatsmanId = (type === 'run_out' && batsmanId) ? batsmanId : wicketInfo.batsmanId;
-    // FIXED: Don't pass runsScored since they're already processed in the original delivery
-    await handleWicketConfirm(type, finalBatsmanId, fielderId);
+    // Pass runsScored for run-outs to add completed runs to the score
+    await handleWicketConfirm(type, finalBatsmanId, fielderId, runsScored);
     setUiState('selecting_next_batsman');
   } catch (e) { console.error("Failed to confirm wicket:", e); }
   finally {

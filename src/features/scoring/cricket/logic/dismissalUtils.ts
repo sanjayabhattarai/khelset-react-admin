@@ -52,20 +52,20 @@ export const processWicket = (
   }
 
   // --- 3. Update Bowling Stats ---
-  // A wicket is not credited to the bowler for a run out.
-  // We also explicitly check isWicketValid again here to make it clear that dismissals
-  // like 'bowled' on a free hit do not count for the bowler.
-  const isBowlerWicket = wicketType !== 'run_out' && isWicketValid;
-  if (isBowlerWicket && currentBowlerId) {
-    const bowlerIndex = innings.bowlingStats.findIndex(b => b.id === currentBowlerId);
-    if (bowlerIndex !== -1) {
-      innings.bowlingStats[bowlerIndex].wickets += 1;
-    }
-  }
+  // FIXED: Don't increment bowler wickets here because processEnhancedDelivery already handles it
+  // This prevents double counting when wicket button is clicked
+  // const isBowlerWicket = wicketType !== 'run_out' && isWicketValid;
+  // if (isBowlerWicket && currentBowlerId) {
+  //   const bowlerIndex = innings.bowlingStats.findIndex(b => b.id === currentBowlerId);
+  //   if (bowlerIndex !== -1) {
+  //     innings.bowlingStats[bowlerIndex].wickets += 1;
+  //   }
+  // }
 
   // --- 4. Update Innings Wicket Count ---
-  // This line only runs for valid wickets due to the early return in the `isWicketValid` check above.
-  innings.wickets += 1;
+  // FIXED: Don't increment wickets here because processEnhancedDelivery already handles it
+  // This prevents double counting when wicket button is clicked
+  // innings.wickets += 1; // REMOVED - handled by processEnhancedDelivery
 
   // --- 5. Clear the dismissed batsman from their current position ---
   // The UI will then prompt for a new batsman to replace them.

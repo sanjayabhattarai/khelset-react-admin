@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../api/firebase'; // Import your Firestore instance
+import { useAuth } from '../../hooks/useAuth'; // Import useAuth hook
 
 export function CreateEventForm() {
   // State for each input field in the form
@@ -17,12 +18,22 @@ export function CreateEventForm() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
+  // Get current user
+  const { user } = useAuth();
+
   // The event handler function
   // We use the specific 'React.FormEvent<HTMLFormElement>' type to fix the error
   const handleCreateEvent = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault(); // Prevent the form from reloading the page
     setLoading(true);
     setMessage('');
+
+    // Check if user is logged in
+    if (!user) {
+      setMessage('You must be logged in to create an event.');
+      setLoading(false);
+      return;
+    }
 
     // Basic validation to ensure dates are selected
     if (!date || !deadline) {
@@ -32,7 +43,7 @@ export function CreateEventForm() {
     }
 
     try {
-      // Create a new document in the top-level 'events' collection
+      // FIXED: Create a new document with user association
       await addDoc(collection(db, 'events'), {
         eventName: eventName,
         location: location,
@@ -42,6 +53,8 @@ export function CreateEventForm() {
         registrationDeadline: new Date(deadline),
         status: 'upcoming', // Set a default status for new events
         createdAt: serverTimestamp(), // Add a server-side timestamp
+        createdBy: user.uid, // Associate event with current user
+        createdByEmail: user.email, // Store user email for reference
       });
 
       setMessage('Event created successfully!');

@@ -59,21 +59,45 @@ export const useMatchData = (matchId: string) => {
     const fetchRelatedData = async () => {
       if (!matchData) return;
       try {
-        const [teamAIds, teamBIds, teamADoc, teamBDoc] = await Promise.all([
-          getTeamPlayerIds(matchData.teamA_id),
-          getTeamPlayerIds(matchData.teamB_id),
+        console.log('Fetching related data for match:', matchData);
+        
+        // Get team documents and names
+        const [teamADoc, teamBDoc] = await Promise.all([
           getTeam(matchData.teamA_id),
           getTeam(matchData.teamB_id),
         ]);
-        const [fetchedTeamAPlayers, fetchedTeamBPlayers] = await Promise.all([
-            getPlayerDocs(teamAIds),
-            getPlayerDocs(teamBIds),
+        
+        setTeamAName(teamADoc?.name || 'Team A');
+        setTeamBName(teamBDoc?.name || 'Team B');
+        
+        // Get player IDs and fetch players from players collection
+        const [teamAIds, teamBIds] = await Promise.all([
+          getTeamPlayerIds(matchData.teamA_id),
+          getTeamPlayerIds(matchData.teamB_id),
         ]);
+        
+        // Fetch players from players collection using IDs
+        const [fetchedTeamAPlayers, fetchedTeamBPlayers] = await Promise.all([
+          getPlayerDocs(teamAIds),
+          getPlayerDocs(teamBIds),
+        ]);
+
+        console.log('Team players loaded:', {
+          teamA: fetchedTeamAPlayers,
+          teamB: fetchedTeamBPlayers
+        });
 
         setTeamAPlayers(fetchedTeamAPlayers);
         setTeamBPlayers(fetchedTeamBPlayers);
-        setTeamAName(teamADoc?.name || 'Team A');
-        setTeamBName(teamBDoc?.name || 'Team B');
+        
+        // Check if we have players for both teams
+        if (fetchedTeamAPlayers.length === 0 || fetchedTeamBPlayers.length === 0) {
+          console.warn('Some teams have no players loaded');
+          setError("Some teams have no players. Please check team setup.");
+        } else {
+          setError(null); // Clear any previous errors
+        }
+        
       } catch (e) {
         console.error("Failed to fetch related match data:", e);
         setError("Could not load team or player data.");
@@ -201,16 +225,16 @@ const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWick
 }, [matchData, matchId, handleInningsEnd]);
   
 
-// FIXED: Process wicket properly including the delivery ball count
-const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: string, fielderId?: string) => {
+// FIXED: Process wicket properly including the delivery ball count and runs for run-outs
+const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: string, fielderId?: string, runsScored: number = 0) => {
     if (!matchData) return;
 
-    // CRITICAL FIX: When a wicket falls, it's still a legal delivery that should count
-    // We need to process the delivery first, then the wicket dismissal
+    // CRITICAL FIX: For run-outs, we need to process the completed runs
+    // For other wickets, runs are already processed in the original delivery
     
-    // Step 1: Process the delivery (0 runs, legal delivery, with wicket)
+    // Step 1: Process the delivery (with runs for run-outs, legal delivery, with wicket)
     const deliveryResult = processEnhancedDelivery(matchData, {
-      runs: 0,
+      runs: type === 'run_out' ? runsScored : 0,
       isLegal: true,
       isWicket: true,
       wicketType: type
