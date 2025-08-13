@@ -40,6 +40,7 @@ export function CricketScoringInterface({ matchId }: CricketScoringProps) {
     handleSetNextBatsman,
     handleSetNextBowler,
     handleUndo,
+    canUndo,
   } = useMatchData(matchId);
 
   // --- UI-ONLY STATE ---
@@ -150,7 +151,7 @@ const onWicketConfirm = useCallback(async (type: WicketType, fielderId: string |
       case 'selecting_opening_players':
         return <TeamPlayerSelector matchData={matchData} teamAPlayers={teamAPlayers} teamBPlayers={teamBPlayers} onSelectionComplete={onPlayerSelectionComplete} />;
       case 'scoring':
-        return <ScoringPanel isUpdating={isUpdating} onDelivery={onDelivery} onWicket={onWicket} onUndo={handleUndo} canUndo={true} />;
+        return <ScoringPanel isUpdating={isUpdating} onDelivery={onDelivery} onWicket={onWicket} onUndo={handleUndo} canUndo={canUndo} />;
       case 'selecting_wicket_type':
         return <WicketModal fielders={bowlingTeamPlayers ?? []} currentBatsmen={currentBatsmen ?? []} onSelect={onWicketConfirm} onCancel={() => setUiState('scoring')} />;
       case 'selecting_next_batsman':

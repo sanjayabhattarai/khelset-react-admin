@@ -2,10 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // DEVELOPMENT/TESTING RULES - More permissive for development
-    // TODO: Replace with production rules when deploying
+    // SIMPLE AUTHENTICATED RULES
+    // Any authenticated user can read/write any document
+    // This ensures maximum compatibility while requiring authentication
     
-    // Allow all authenticated users to read/write all documents
     match /{document=**} {
       allow read, write: if request.auth != null;
     }

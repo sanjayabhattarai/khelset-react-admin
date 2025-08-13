@@ -25,6 +25,13 @@ export function ScoringPanel({ isUpdating, onDelivery, onWicket, onUndo, canUndo
   const [wideModalOpen, setWideModalOpen] = useState(false);
   const [noBallModalOpen, setNoBallModalOpen] = useState(false);
 
+  // Simple undo function
+  const handleUndoClick = () => {
+    console.log('🔵 Simple Undo button clicked!', { isUpdating, canUndo });
+    console.log('🔵 Calling simple onUndo...');
+    onUndo();
+  };
+
   const handleExtrasClick = (type: 'bye' | 'leg_bye') => {
     setExtrasModalType(type);
   };
@@ -87,9 +94,9 @@ export function ScoringPanel({ isUpdating, onDelivery, onWicket, onUndo, canUndo
   // This reduces code repetition and makes the UI easier to maintain.
   const ScoringButton = ({ children, onClick, disabled, className = '' }: any) => (
     <button
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
       disabled={disabled}
-      className={`p-4 rounded-lg font-bold text-xl text-white shadow-md transform transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-white ${className} ${disabled ? 'bg-gray-600 cursor-not-allowed opacity-60' : 'hover:scale-105 hover:shadow-lg'}`}
+      className={`p-4 rounded-lg font-bold text-xl text-white shadow-md transform transition-all duration-200 ${disabled ? 'bg-gray-600 cursor-not-allowed opacity-60' : `${className} hover:scale-105 hover:shadow-lg`}`}
     >
       {children}
     </button>
@@ -130,7 +137,13 @@ export function ScoringPanel({ isUpdating, onDelivery, onWicket, onUndo, canUndo
         <div className="grid grid-cols-2 gap-3 mt-4">
           {/* ✨ RED WICKET BUTTON AS REQUESTED ✨ */}
           <ScoringButton onClick={onWicket} disabled={isUpdating} className="bg-red-500 hover:bg-red-600 text-lg">WICKET</ScoringButton>
-          <ScoringButton onClick={onUndo} disabled={isUpdating || !canUndo} className="bg-green-500 hover:bg-green-600 text-lg">UNDO</ScoringButton>
+          <ScoringButton 
+            onClick={handleUndoClick} 
+            disabled={isUpdating} 
+            className="text-lg bg-green-500 hover:bg-green-600"
+          >
+            UNDO ↶
+          </ScoringButton>
         </div>
       </div>
 

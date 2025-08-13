@@ -12,9 +12,7 @@ import {
   addDoc,
   orderBy,
   limit,
-  deleteDoc,
   writeBatch, // Import writeBatch for atomic operations
-  setDoc,
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore';
@@ -168,58 +166,112 @@ export const getAvailablePlayers = async (): Promise<Player[]> => {
  * @param stateToSave The full MatchData object, stringified.
  */
 export const addStateToUndoStack = async (matchId: string, inningsNum: number, stateToSave: string) => {
-    const undoCollectionRef = collection(db, 'matches', matchId, `innings${inningsNum}_undoStack`);
     try {
-        // First, add the new state. We use the current timestamp as the document ID
-        // to ensure they are naturally ordered chronologically.
-        const newUndoDocRef = doc(undoCollectionRef, Date.now().toString());
-        await setDoc(newUndoDocRef, { state: stateToSave });
-
-        // ✨ NEW LOGIC: After adding, check if the collection is too large.
-        const q = query(undoCollectionRef, orderBy('__name__', 'desc'));
-        const snapshot = await getDocs(q);
-
-        // If we have more than 2 undo states, delete the oldest ones.
-        if (snapshot.docs.length > 2) {
-            const batch = writeBatch(db);
-            // Get all documents except the 2 most recent ones.
-            const docsToDelete = snapshot.docs.slice(2);
-            docsToDelete.forEach(doc => {
-                batch.delete(doc.ref);
-            });
-            // Commit all the deletions in a single atomic operation.
-            await batch.commit();
+        // Store undo state directly in the match document for simplicity and reliability
+        const matchDocRef = doc(db, 'matches', matchId);
+        const currentData = (await getDoc(matchDocRef)).data();
+        
+        if (currentData) {
+            // Store undo states as an array in the main document
+            const undoStates = currentData.undoStates || [];
+            const newUndoState = {
+                innings: inningsNum,
+                state: stateToSave,
+                timestamp: Date.now()
+            };
+            undoStates.push(newUndoState);
+            
+            // Keep only last 5 undo states
+            if (undoStates.length > 5) {
+                undoStates.splice(0, undoStates.length - 5);
+            }
+            
+            await updateDoc(matchDocRef, { undoStates });
+            console.log(`💾 Undo state saved for innings ${inningsNum}. Total states: ${undoStates.length}`);
+            
+            // Verify the save actually worked by reading it back immediately
+            const verifyDoc = await getDoc(matchDocRef);
+            const verifyData = verifyDoc.data();
+            const verifyStates = verifyData?.undoStates || [];
+            console.log(`✅ Verification: ${verifyStates.length} states actually saved to Firestore`);
         }
     } catch (error) {
-        console.error("Error adding state to undo stack:", error);
-        throw error;
+        console.error("❌ Error adding state to undo stack:", error);
+        console.error("❌ Error details:", error);
+        // Don't throw error for undo stack failures - it's not critical for gameplay
     }
 };
 
 /**
- * Fetches the most recent state from the undoStack subcollection.
+ * Fetches the most recent state from the undo states stored in the match document.
  */
 export const getLatestUndoState = async (matchId: string, inningsNum: number): Promise<{ id: string; data: string } | null> => {
-    const undoCollectionRef = collection(db, 'matches', matchId, `innings${inningsNum}_undoStack`);
-    const q = query(undoCollectionRef, orderBy('__name__', 'desc'), limit(1));
-    const snapshot = await getDocs(q);
-    if (snapshot.empty) {
+    try {
+        const matchDocRef = doc(db, 'matches', matchId);
+        const matchDoc = await getDoc(matchDocRef);
+        
+        if (!matchDoc.exists()) {
+            console.log('📄 Match document not found');
+            return null;
+        }
+        
+        const matchData = matchDoc.data();
+        const undoStates = matchData.undoStates || [];
+        
+        console.log(`🔍 Raw undo states in document:`, undoStates);
+        console.log(`🔍 Looking for innings ${inningsNum} states...`);
+        
+        // Find the most recent undo state for this innings
+        const inningsUndoStates = undoStates
+            .filter((state: any) => {
+                console.log(`🔍 Checking state: innings=${state.innings}, target=${inningsNum}, match=${state.innings === inningsNum}`);
+                return state.innings === inningsNum;
+            })
+            .sort((a: any, b: any) => b.timestamp - a.timestamp);
+        
+        console.log(`🔍 Found ${inningsUndoStates.length} undo states for innings ${inningsNum}`);
+        
+        if (inningsUndoStates.length === 0) {
+            return null;
+        }
+        
+        const latestState = inningsUndoStates[0];
+        console.log(`📤 Returning undo state with timestamp: ${latestState.timestamp}`);
+        return { 
+            id: latestState.timestamp.toString(), 
+            data: latestState.state 
+        };
+    } catch (error) {
+        console.error("Error fetching undo state:", error);
         return null;
     }
-    const lastDoc = snapshot.docs[0];
-    return { id: lastDoc.id, data: lastDoc.data().state };
 };
 
 /**
- * Deletes a document from a subcollection, used by the undo feature.
+ * Deletes the latest undo state for a specific innings.
  */
 export const deleteFromUndoStack = async (matchId: string, inningsNum: number, docId: string) => {
-    const docRef = doc(db, 'matches', matchId, `innings${inningsNum}_undoStack`, docId);
     try {
-        await deleteDoc(docRef);
+        const matchDocRef = doc(db, 'matches', matchId);
+        const matchDoc = await getDoc(matchDocRef);
+        
+        if (!matchDoc.exists()) {
+            return;
+        }
+        
+        const matchData = matchDoc.data();
+        const undoStates = matchData.undoStates || [];
+        
+        // Remove the undo state with the matching timestamp and innings
+        const filteredStates = undoStates.filter((state: any) => 
+            !(state.innings === inningsNum && state.timestamp.toString() === docId)
+        );
+        
+        await updateDoc(matchDocRef, { undoStates: filteredStates });
     } catch (error) {
         console.error("Error deleting from undo stack:", error);
-        throw error;
+        // Don't throw error for undo operations
+        console.warn("Failed to delete undo state, but continuing with gameplay");
     }
 };
 

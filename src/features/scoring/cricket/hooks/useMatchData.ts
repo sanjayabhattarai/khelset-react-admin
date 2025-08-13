@@ -13,10 +13,7 @@ import {
   getPlayerDocs,
   getTeam,
   updateMatch,
-  addDeliveryToHistory,
-  addStateToUndoStack,
-  getLatestUndoState,
-  deleteFromUndoStack
+  addDeliveryToHistory
 } from '../services/firestoreService';
 
 // --- Logic Utilities ---
@@ -42,6 +39,10 @@ export const useMatchData = (matchId: string) => {
   const [teamBPlayers, setTeamBPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Undo functionality state - simple last delivery undo
+  const [lastDeliveryState, setLastDeliveryState] = useState<MatchData | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // --- DATA FETCHING EFFECTS ---
 
@@ -161,7 +162,9 @@ export const useMatchData = (matchId: string) => {
 const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: boolean, extraType?: ExtraType, wicketType?: WicketType, runType?: 'hit' | 'bye' | 'leg_bye') => {
   if (!matchData) throw new Error("Match data not available");
 
-  await addStateToUndoStack(matchId, matchData.currentInnings, JSON.stringify(matchData));
+  // SIMPLE UNDO: Save current state before making changes
+  console.log('💾 Saving current state for simple undo...');
+  setLastDeliveryState(JSON.parse(JSON.stringify(matchData))); // Deep copy
 
   // Use enhanced delivery processing for better cricket rules handling
   let result = processEnhancedDelivery(matchData, { runs, isLegal, isWicket, extraType, wicketType, runType });
@@ -228,6 +231,10 @@ const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWick
 // FIXED: Process wicket properly including the delivery ball count and runs for run-outs
 const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: string, fielderId?: string, runsScored: number = 0) => {
     if (!matchData) return;
+
+    // SIMPLE UNDO: Save current state before wicket confirmation
+    console.log('💾 Saving current state before wicket for simple undo...');
+    setLastDeliveryState(JSON.parse(JSON.stringify(matchData))); // Deep copy
 
     // CRITICAL FIX: For run-outs, we need to process the completed runs
     // For other wickets, runs are already processed in the original delivery
@@ -315,16 +322,30 @@ const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: stri
   }, [matchData, matchId, teamAPlayers, teamBPlayers]);
 
   const handleUndo = useCallback(async () => {
-    if (!matchData) return;
-    const lastStateInfo = await getLatestUndoState(matchId, matchData.currentInnings);
-    if (lastStateInfo) {
-      const previousState = JSON.parse(lastStateInfo.data);
-      await updateMatch(matchId, previousState); // This is a direct overwrite, not a merge
-      await deleteFromUndoStack(matchId, matchData.currentInnings, lastStateInfo.id);
-    } else {
-      alert("No deliveries to undo.");
+    if (!lastDeliveryState) {
+      console.log('❌ No last delivery state available for undo');
+      alert("No delivery to undo.");
+      return;
     }
-  }, [matchData, matchId]);
+    
+    try {
+      setIsUpdating(true);
+      console.log('🔄 Undoing last delivery - restoring previous state...');
+      
+      // Simply restore the last saved state
+      await updateMatch(matchId, lastDeliveryState);
+      
+      // Clear the undo state since it's been used
+      setLastDeliveryState(null);
+      
+      console.log('✅ Undo successful! Previous state restored.');
+    } catch (error) {
+      console.error('❌ Undo failed:', error);
+      alert("Failed to undo. Please try again.");
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [lastDeliveryState, matchId]);
 
 
   // --- DERIVED DATA ---
@@ -364,10 +385,8 @@ const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: stri
   }, [matchData, teamAPlayers, teamBPlayers]);
 
 
-  // --- FINAL RETURN OBJECT ---
-  // The hook exposes all the data and all the action handlers to the component.
   return {
-    loading, error, matchData,
+    loading, error, matchData, isUpdating,
     teamAPlayers, teamBPlayers, teamAName, teamBName,
     ...derivedData,
     handleTossComplete,
@@ -377,5 +396,6 @@ const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: stri
     handleSetNextBatsman,
     handleSetNextBowler,
     handleUndo,
+    canUndo: !!lastDeliveryState, // Simple: can undo if we have a saved state
   };
 };
