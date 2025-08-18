@@ -98,12 +98,23 @@ const onDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: 
   }
 }, [handleDelivery, isUpdating, matchData]);
 
-  const onWicket = useCallback(() => {
-    // FIXED: Just trigger wicket selection without processing delivery
-    // This avoids double wicket counting
-    setWicketInfo({ batsmanId: matchData?.onStrikeBatsmanId || '' });
-    setUiState('selecting_wicket_type');
-  }, [matchData]);
+  const onWicket = useCallback(async () => {
+    if (isUpdating) return;
+    setIsUpdating(true);
+    
+    try {
+      // CRITICAL FIX: Process the delivery with wicket first to count the ball
+      await handleDelivery(0, true, true); // 0 runs, legal delivery, with wicket
+      
+      // After processing the delivery, show wicket modal
+      setWicketInfo({ batsmanId: matchData?.onStrikeBatsmanId || '' });
+      setUiState('selecting_wicket_type');
+    } catch (e) {
+      console.error("Failed to process wicket delivery:", e);
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [matchData, handleDelivery, isUpdating]);
 
  // Handle wicket confirmation with runs for run-outs
 const onWicketConfirm = useCallback(async (type: WicketType, fielderId: string | undefined, runsScored: number, batsmanId?: string) => {
@@ -124,8 +135,16 @@ const onWicketConfirm = useCallback(async (type: WicketType, fielderId: string |
 
   const onNextBatsmanSelect = useCallback(async (batsmanId: string) => {
     await handleSetNextBatsman(batsmanId);
-    setUiState('scoring');
-  }, [handleSetNextBatsman]);
+    
+    // CRITICAL FIX: After setting the next batsman, check if we need a new bowler
+    // This handles the case where a wicket fell on the last ball of an over
+    if (matchData && matchData.currentBowlerId === null) {
+      // If currentBowlerId is null, it means processEndOfOver was called and we need a new bowler
+      setUiState('selecting_next_bowler');
+    } else {
+      setUiState('scoring');
+    }
+  }, [handleSetNextBatsman, matchData]);
 
   const onNextBowlerSelect = useCallback(async (bowlerId: string) => {
     await handleSetNextBowler(bowlerId);

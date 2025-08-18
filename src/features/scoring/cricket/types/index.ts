@@ -7,6 +7,8 @@ export interface Player {
   id: string;
   name: string;
   role: string;
+  teamId?: string | null; // ID of the team this player belongs to (null if unassigned)
+  createdBy?: string; // ID of the user who created this player
 }
 
 /**
@@ -133,10 +135,10 @@ export interface MatchData {
 export interface Team {
   id: string;
   name: string;
-  status: string;
-  eventId: string;
-  captainId: string;
-  players: string[]; // This is an array of player document IDs
+  status?: string;
+  eventId?: string;
+  captainId?: string;
+  players?: string[]; // This is an array of player document IDs
 }
 
 

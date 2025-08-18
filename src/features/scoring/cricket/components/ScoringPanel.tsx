@@ -1,14 +1,12 @@
 // src/features/scoring/cricket/components/ScoringPanel.tsx
-// FINAL PROFESSIONAL UI: This version combines a vibrant, color-coded design
-// with professional styling like gradients, hover effects, and focus rings.
+// Modern cricket scoring UI with dynamic overlays for extras and wickets
 
 import { useState } from 'react';
 import { ExtraType } from '../types';
-import { ExtrasModal } from './ExtrasModal';
-import { WideNoBallModal } from './WideNoBallModal';
-import { NoBallModal } from './NoBallModal';
+import { WideModal } from './WideModal';
+import { EnhancedNoBallModal } from './EnhancedNoBallModal';
+import { EnhancedExtrasModal } from './EnhancedExtrasModal';
 
-// The props interface - we'll need to extend this to support runType
 interface ScoringPanelProps {
   isUpdating: boolean;
   onDelivery: (runs: number, isLegal: boolean, isWicket: boolean, extraType?: ExtraType, wicketType?: any, runType?: 'hit' | 'bye' | 'leg_bye') => void;
@@ -18,80 +16,42 @@ interface ScoringPanelProps {
 }
 
 export function ScoringPanel({ isUpdating, onDelivery, onWicket, onUndo, canUndo }: ScoringPanelProps) {
-  // --- STATE & LOGIC ---
-  // This is your existing logic for handling the extras modal for byes/leg-byes.
-  // It has not been changed.
-  const [extrasModalType, setExtrasModalType] = useState<'bye' | 'leg_bye' | null>(null);
-  const [wideModalOpen, setWideModalOpen] = useState(false);
-  const [noBallModalOpen, setNoBallModalOpen] = useState(false);
+  // State management for overlays
+  const [overlay, setOverlay] = useState<null | 'wide' | 'no_ball' | 'bye' | 'leg_bye'>(null);
 
-  // Simple undo function
-  const handleUndoClick = () => {
-    console.log('🔵 Simple Undo button clicked!', { isUpdating, canUndo });
-    console.log('🔵 Calling simple onUndo...');
-    onUndo();
-  };
+  // Event handlers
+  const handleRunClick = (runs: number) => onDelivery(runs, true, false);
+  const handleOverlayOpen = (type: typeof overlay) => setOverlay(type);
+  const handleUndoClick = () => onUndo();
 
-  const handleExtrasClick = (type: 'bye' | 'leg_bye') => {
-    setExtrasModalType(type);
-  };
-
-  const handleWideClick = () => {
-    setWideModalOpen(true);
-  };
-
-  const handleNoBallClick = () => {
-    setNoBallModalOpen(true);
-  };
-
-  const handleExtrasConfirm = (runs: number) => {
-    if (extrasModalType) {
-      onDelivery(runs, true, false, extrasModalType);
+  // Overlay confirmation handler
+  const handleOverlayConfirm = (type: typeof overlay, data: any) => {
+    switch (type) {
+      case 'wide':
+        onDelivery(data.runs, false, false, 'wide');
+        if (data.triggerWicket) {
+          onWicket();
+        }
+        break;
+      case 'no_ball':
+        onDelivery(data.runs, false, false, 'no_ball', undefined, data.runType);
+        if (data.triggerWicket) {
+          onWicket();
+        }
+        break;
+      case 'bye':
+        onDelivery(data.runs, true, false, 'bye');
+        break;
+      case 'leg_bye':
+        onDelivery(data.runs, true, false, 'leg_bye');
+        break;
+      default:
+        break;
     }
-    setExtrasModalType(null);
+    setOverlay(null);
   };
 
-  const handleWideConfirm = (additionalRuns: number, triggerWicket: boolean) => {
-    // For wide balls: penalty + runs, all to extras
-    // FIXED: Do NOT process wicket here to avoid double counting
-    onDelivery(additionalRuns, false, false, 'wide', undefined, undefined);
-    setWideModalOpen(false);
-    
-    // If wicket was requested, trigger the wicket modal separately
-    if (triggerWicket) {
-      onWicket();
-    }
-  };
-
-  const handleNoBallConfirm = (additionalRuns: number, runType: 'hit' | 'bye' | 'leg_bye', triggerWicket: boolean) => {
-    // For no-balls: penalty + runs, attribution depends on runType
-    // FIXED: Do NOT process wicket here to avoid double counting
-    onDelivery(additionalRuns, false, false, 'no_ball', undefined, runType);
-    setNoBallModalOpen(false);
-    
-    // If wicket was requested, trigger the wicket modal separately
-    if (triggerWicket) {
-      onWicket();
-    }
-  };
-
-  // This is your existing logic for handling custom run amounts.
-  // It has not been changed.
-  const handleCustomRuns = () => {
-    const runsStr = prompt("Enter number of runs scored (e.g., 5, 7):");
-    if (runsStr) {
-      const runs = parseInt(runsStr, 10);
-      if (!isNaN(runs) && runs >= 0) {
-        onDelivery(runs, true, false);
-      } else {
-        alert("Invalid number entered.");
-      }
-    }
-  };
-
-  // --- UI COMPONENTS ---
-  // A helper component for a consistent, professional button style.
-  // This reduces code repetition and makes the UI easier to maintain.
+  // Reusable button component
   const ScoringButton = ({ children, onClick, disabled, className = '' }: any) => (
     <button
       onClick={disabled ? undefined : onClick}
@@ -104,77 +64,65 @@ export function ScoringPanel({ isUpdating, onDelivery, onWicket, onUndo, canUndo
 
   return (
     <>
-      {/* This is the main container for the scoring panel. */}
-      {/* It has a white background for better visibility of the colorful buttons. */}
       <div className="bg-white bg-opacity-95 backdrop-blur-sm p-6 rounded-xl shadow-2xl w-full max-w-md mx-auto border border-gray-300">
         <h3 className="text-lg font-semibold text-center text-gray-800 mb-4">Scoring Controls</h3>
-        
-        {/* Main run-scoring buttons */}
-        <div className="grid grid-cols-4 gap-3 text-center">
+
+        {/* Primary run scoring buttons */}
+        <div className="grid grid-cols-3 gap-3 text-center">
           {[0, 1, 2, 3, 4, 6].map(runs => (
-            <ScoringButton key={runs} onClick={() => onDelivery(runs, true, false)} disabled={isUpdating} className="bg-blue-500 hover:bg-blue-600">
+            <ScoringButton key={runs} onClick={() => handleRunClick(runs)} disabled={isUpdating} className="bg-blue-500 hover:bg-blue-600">
               {runs}
             </ScoringButton>
           ))}
-          <ScoringButton onClick={handleCustomRuns} disabled={isUpdating} className="bg-blue-500 hover:bg-blue-600">
-            5+
-          </ScoringButton>
-           <ScoringButton onClick={() => onDelivery(0, true, false)} disabled={isUpdating} className="bg-blue-500 hover:bg-blue-600">
-            ...
-          </ScoringButton>
         </div>
 
-        {/* Extras buttons with distinct colors for better visual grouping */}
-        <div className="grid grid-cols-4 gap-3 mt-3">
-          <ScoringButton onClick={handleWideClick} disabled={isUpdating} className="bg-yellow-500 hover:bg-yellow-600 text-black">WD</ScoringButton>
-          <ScoringButton onClick={handleNoBallClick} disabled={isUpdating} className="bg-yellow-500 hover:bg-yellow-600 text-black">NB</ScoringButton>
-          {/* ✨ PURPLE BUTTONS AS REQUESTED ✨ */}
-          <ScoringButton onClick={() => handleExtrasClick('bye')} disabled={isUpdating} className="bg-orange-500 hover:bg-orange-600">BYE</ScoringButton>
-          <ScoringButton onClick={() => handleExtrasClick('leg_bye')} disabled={isUpdating} className="bg-orange-500 hover:bg-orange-600">LB</ScoringButton>
+        {/* Special scoring buttons for extras */}
+        <div className="grid grid-cols-4 gap-3 mt-4">
+          <ScoringButton onClick={() => handleOverlayOpen('wide')} disabled={isUpdating} className="bg-yellow-500 hover:bg-yellow-600 text-black">WD</ScoringButton>
+          <ScoringButton onClick={() => handleOverlayOpen('no_ball')} disabled={isUpdating} className="bg-yellow-500 hover:bg-yellow-600 text-black">NB</ScoringButton>
+          <ScoringButton onClick={() => handleOverlayOpen('bye')} disabled={isUpdating} className="bg-orange-500 hover:bg-orange-600">BYE</ScoringButton>
+          <ScoringButton onClick={() => handleOverlayOpen('leg_bye')} disabled={isUpdating} className="bg-orange-500 hover:bg-orange-600">LB</ScoringButton>
         </div>
 
-        {/* Main action buttons, made larger and more prominent */}
+        {/* Action buttons */}
         <div className="grid grid-cols-2 gap-3 mt-4">
-          {/* ✨ RED WICKET BUTTON AS REQUESTED ✨ */}
           <ScoringButton onClick={onWicket} disabled={isUpdating} className="bg-red-500 hover:bg-red-600 text-lg">WICKET</ScoringButton>
-          <ScoringButton 
-            onClick={handleUndoClick} 
-            disabled={isUpdating} 
-            className="text-lg bg-green-500 hover:bg-green-600"
-          >
-            UNDO ↶
-          </ScoringButton>
+          <ScoringButton onClick={handleUndoClick} disabled={isUpdating || !canUndo} className="text-lg bg-green-500 hover:bg-green-600">UNDO ↶</ScoringButton>
         </div>
       </div>
 
-      {/* Extras Modal - This is your existing modal logic, which appears on top of the screen. */}
-      {extrasModalType && (
+      {/* Dynamic modal overlays */}
+      {overlay === 'wide' && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <ExtrasModal
-            extraType={extrasModalType}
-            onSelect={handleExtrasConfirm}
-            onCancel={() => setExtrasModalType(null)}
+          <WideModal
+            onSelect={(runs: number, triggerWicket: boolean) => handleOverlayConfirm('wide', { runs, triggerWicket })}
+            onCancel={() => setOverlay(null)}
           />
         </div>
       )}
-
-      {/* Wide Ball Modal */}
-      {wideModalOpen && (
+      {overlay === 'no_ball' && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <WideNoBallModal
-            extraType="wide"
-            onSelect={handleWideConfirm}
-            onCancel={() => setWideModalOpen(false)}
+          <EnhancedNoBallModal
+            onSelect={(runs: number, runType: 'hit' | 'bye' | 'leg_bye', triggerWicket: boolean) => handleOverlayConfirm('no_ball', { runs, runType, triggerWicket })}
+            onCancel={() => setOverlay(null)}
           />
         </div>
       )}
-
-      {/* No Ball Modal - Enhanced modal for handling different run types */}
-      {noBallModalOpen && (
+      {overlay === 'bye' && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <NoBallModal
-            onSelect={handleNoBallConfirm}
-            onCancel={() => setNoBallModalOpen(false)}
+          <EnhancedExtrasModal
+            extraType="bye"
+            onSelect={(runs: number) => handleOverlayConfirm('bye', { runs })}
+            onCancel={() => setOverlay(null)}
+          />
+        </div>
+      )}
+      {overlay === 'leg_bye' && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <EnhancedExtrasModal
+            extraType="leg_bye"
+            onSelect={(runs: number) => handleOverlayConfirm('leg_bye', { runs })}
+            onCancel={() => setOverlay(null)}
           />
         </div>
       )}

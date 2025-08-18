@@ -163,7 +163,6 @@ const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWick
   if (!matchData) throw new Error("Match data not available");
 
   // SIMPLE UNDO: Save current state before making changes
-  console.log('💾 Saving current state for simple undo...');
   setLastDeliveryState(JSON.parse(JSON.stringify(matchData))); // Deep copy
 
   // Use enhanced delivery processing for better cricket rules handling
@@ -178,6 +177,10 @@ const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWick
     dataToSave.currentBowlerId = null;
     dataToSave.previousBowlerId = matchData.currentBowlerId;
   }
+
+  // CRITICAL FIX: Save the delivery data immediately, even if there's a wicket
+  // This ensures that over completion state is persisted before wicket confirmation
+  await updateMatch(matchId, dataToSave);
 
   // Use the enhanced result's run breakdown for accurate delivery logging
   const runsBreakdown = result.runsBreakdown || {
@@ -218,7 +221,7 @@ const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWick
   };
   
   await addDeliveryToHistory(matchId, matchData.currentInnings, deliveryLog);
-  await updateMatch(matchId, dataToSave);
+  // NOTE: Match data was already saved above immediately after processing
 
   if (result.isInningsOver) {
     await handleInningsEnd();
@@ -228,29 +231,40 @@ const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWick
 }, [matchData, matchId, handleInningsEnd]);
   
 
-// FIXED: Process wicket properly including the delivery ball count and runs for run-outs
+// FIXED: Process wicket properly - delivery already processed in onWicket, just handle dismissal
 const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: string, fielderId?: string, runsScored: number = 0) => {
     if (!matchData) return;
 
     // SIMPLE UNDO: Save current state before wicket confirmation
-    console.log('💾 Saving current state before wicket for simple undo...');
     setLastDeliveryState(JSON.parse(JSON.stringify(matchData))); // Deep copy
 
-    // CRITICAL FIX: For run-outs, we need to process the completed runs
-    // For other wickets, runs are already processed in the original delivery
+    // The delivery was already processed in onWicket (ball counted, over completion handled)
+    // We only need to process the wicket dismissal and any additional runs for run-outs
     
-    // Step 1: Process the delivery (with runs for run-outs, legal delivery, with wicket)
-    const deliveryResult = processEnhancedDelivery(matchData, {
-      runs: type === 'run_out' ? runsScored : 0,
-      isLegal: true,
-      isWicket: true,
-      wicketType: type
-    });
+    let finalData = matchData;
     
-    // Step 2: Process the wicket dismissal (batsman positioning)
-    let finalData = processWicket(deliveryResult.updatedData, type, batsmanId, fielderId);
+    if (type === 'run_out' && runsScored > 0) {
+      // Only for run-outs, process the additional runs
+      const runOutResult = processEnhancedDelivery(matchData, {
+        runs: runsScored,
+        isLegal: true,
+        isWicket: false, // Don't double-count the wicket
+        wicketType: undefined
+      });
+      
+      finalData = runOutResult.updatedData;
+      
+      // Handle over completion for run-out scenario
+      if (runOutResult.isOverComplete && !runOutResult.isInningsOver) {
+        finalData = processEndOfOver(finalData);
+      } else if (runOutResult.isInningsOver) {
+        finalData.currentBowlerId = null;
+        finalData.previousBowlerId = matchData.currentBowlerId;
+      }
+    }
     
-    // FIXED: Don't increment wicket counts here - processWicket and processEnhancedDelivery handle all wicket counting
+    // Process the wicket dismissal (batsman positioning and stats)
+    finalData = processWicket(finalData, type, batsmanId, fielderId);
     
     // Get current innings for checking end conditions
     const currentInnings = finalData.currentInnings === 1 ? finalData.innings1 : finalData.innings2;
