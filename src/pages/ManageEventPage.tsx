@@ -80,13 +80,28 @@ export function ManageEventPage() {
                 <ul className="space-y-3">
                   {teams.map((team) => (
                     <li key={team.id} className="bg-gray-700 p-4 rounded-md flex justify-between items-center">
-                      {/* Team name is now a Link to the Manage Team page */}
-                      <Link to={`/manage-team/${team.id}`} className="font-semibold text-white hover:text-green-400">
-                        {team.name}
-                      </Link>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center space-x-4">
+                        <span className="font-semibold text-white">{team.name}</span>
                         <p className={`text-sm font-semibold ${team.status === 'Approved' ? 'text-green-400' : 'text-yellow-400'}`}>{team.status}</p>
-                        {team.status === 'Pending' && <button onClick={() => handleApproveTeam(team.id)} className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded-md">Approve</button>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {team.status === 'Pending' && (
+                          <button 
+                            onClick={() => handleApproveTeam(team.id)} 
+                            className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded-md transition-colors"
+                          >
+                            Approve
+                          </button>
+                        )}
+                        <Link 
+                          to={`/manage-team/${team.id}`} 
+                          className="px-3 py-1 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors flex items-center gap-1"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                          </svg>
+                          Manage Team
+                        </Link>
                       </div>
                     </li>
                   ))}

@@ -17,14 +17,7 @@ import {
   arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../../../../api/firebase'; // Adjust the import path to your firebase config
-import { MatchData, Player, Delivery } from '../types';
-
-// Define Team type locally if not exported from '../types'
-type Team = {
-  id: string;
-  name: string;
-  // Add other properties as needed
-};
+import { MatchData, Player, Delivery, Team } from '../types';
 
 /**
  * Subscribes to real-time updates for the main match document.
@@ -315,6 +308,21 @@ export const getPlayerDocs = async (ids: string[]): Promise<Player[]> => {
   }
   
   const playersQuery = query(collection(db, 'players'), where('__name__', 'in', ids));
+  const snapshot = await getDocs(playersQuery);
+  const players = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Player));
+  
+  return players;
+};
+
+/**
+ * Gets all players that belong to a specific team by teamId
+ */
+export const getPlayersByTeamId = async (teamId: string): Promise<Player[]> => {
+  if (!teamId) {
+    return [];
+  }
+  
+  const playersQuery = query(collection(db, 'players'), where('teamId', '==', teamId));
   const snapshot = await getDocs(playersQuery);
   const players = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Player));
   
