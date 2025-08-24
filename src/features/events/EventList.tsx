@@ -42,29 +42,31 @@ export function EventList() {
   }, [user]); // Re-run when user changes
 
   return (
-    <div className="bg-gray-800 p-6 rounded-lg">
+    <div>
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-2xl font-bold">🏏 Your Events</h3>
-        <div className="text-sm text-gray-400">
-          {events.length} event{events.length !== 1 ? 's' : ''}
+        <div>
+          <h3 className="text-lg font-semibold text-white">Your Events</h3>
+          <p className="text-sm text-gray-300 mt-1">
+            {events.length} event{events.length !== 1 ? 's' : ''} created
+          </p>
         </div>
       </div>
       
       {!user ? (
         <div className="text-center py-8">
           <div className="text-6xl mb-4">🔒</div>
-          <p className="text-gray-400 text-lg">Please log in to see your events.</p>
+          <p className="text-gray-300 text-lg">Please log in to see your events.</p>
         </div>
       ) : loading ? (
         <div className="text-center py-8">
           <div className="text-6xl mb-4">⏳</div>
-          <p className="text-lg">Loading your events...</p>
+          <p className="text-white text-lg">Loading your events...</p>
         </div>
       ) : events.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">🏏</div>
-          <p className="text-gray-400 text-lg mb-4">You haven't created any events yet.</p>
-          <p className="text-gray-500">Create your first cricket event to get started!</p>
+          <p className="text-gray-300 text-lg mb-4">You haven't created any events yet.</p>
+          <p className="text-gray-400">Create your first cricket event to get started!</p>
         </div>
       ) : (
         <div className="grid gap-4">
@@ -72,7 +74,7 @@ export function EventList() {
             <div key={event.id} className="group">
               <Link 
                 to={`/manage-event/${event.id}`} 
-                className="block bg-gradient-to-r from-gray-700 to-gray-600 hover:from-blue-700 hover:to-purple-600 rounded-lg transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl border border-gray-600 hover:border-blue-500 overflow-hidden"
+                className="block bg-gray-700 hover:bg-gray-600 rounded-lg transition-all duration-200 border border-gray-600 hover:border-blue-400 hover:shadow-md overflow-hidden"
               >
                 {/* Poster Image Section */}
                 {event.posterUrl ? (
@@ -85,7 +87,7 @@ export function EventList() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
                   </div>
                 ) : (
-                  <div className="h-40 bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center">
+                  <div className="h-40 bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center border-b border-gray-600">
                     <div className="text-6xl">🏏</div>
                   </div>
                 )}
@@ -94,7 +96,7 @@ export function EventList() {
                 <div className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <h4 className="font-bold text-xl mb-2 group-hover:text-white transition-colors">
+                      <h4 className="font-bold text-xl mb-2 text-white group-hover:text-blue-300 transition-colors">
                         {event.eventName}
                       </h4>
                       <div className="flex items-center space-x-4">
@@ -107,10 +109,10 @@ export function EventList() {
                         }`}>
                           {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
                         </span>
-                        <span className="text-gray-400 text-sm">🏏 Cricket Event</span>
+                        <span className="text-gray-300 text-sm">🏏 Cricket Event</span>
                       </div>
                     </div>
-                    <div className="text-gray-400 group-hover:text-white transition-colors">
+                    <div className="text-gray-400 group-hover:text-blue-300 transition-colors">
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
