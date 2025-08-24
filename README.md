@@ -15,13 +15,7 @@ A cricket scoring and event management application built with React, TypeScript,
 
 ### 1. Environment Variables
 
-Copy the example environment file and add your Firebase configuration:
-
-```bash
-cp .env.example .env
-```
-
-Then edit `.env` with your Firebase project credentials:
+Create a `.env` file in the root directory and add your Firebase configuration:
 
 ```env
 VITE_FIREBASE_API_KEY=your_api_key_here
