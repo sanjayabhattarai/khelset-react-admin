@@ -31,7 +31,6 @@ export const processWicket = (
   if (!isWicketValid) {
     // If the wicket is not valid (e.g., bowled on a free hit), we simply return
     // the original data without making any changes to the score or stats.
-    console.log("Wicket occurred on a free hit, but was not a run-out. Dismissal ignored.");
     return currentMatchData;
   }
 

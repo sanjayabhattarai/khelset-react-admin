@@ -160,12 +160,16 @@ export const processEnhancedDelivery = (
   if (isLegal && extraType !== 'wide' && extraType !== 'no_ball') {
     innings.ballsInOver += 1;
     
-    // Calculate overs display
-    const totalBallsInInnings = (Math.floor(innings.overs) * 6) + innings.ballsInOver;
-    innings.overs = calculateOversDisplay(totalBallsInInnings);
+    // FIXED: Calculate bowler's overs correctly
+    // Bowler's balls in current over should match innings.ballsInOver
+    const bowlerCompletedOvers = Math.floor(currentBowler.overs);
+    const bowlerTotalBalls = (bowlerCompletedOvers * 6) + innings.ballsInOver;
+    currentBowler.overs = calculateOversDisplay(bowlerTotalBalls);
     
-    const totalBallsForBowler = (Math.floor(currentBowler.overs) * 6) + innings.ballsInOver;
-    currentBowler.overs = calculateOversDisplay(totalBallsForBowler);
+    // Calculate innings overs display
+    const inningsCompletedOvers = Math.floor(innings.overs);
+    const inningsTotalBalls = (inningsCompletedOvers * 6) + innings.ballsInOver;
+    innings.overs = calculateOversDisplay(inningsTotalBalls);
 
     if (innings.ballsInOver >= 6) {
       isOverComplete = true;

@@ -10,7 +10,7 @@ import { db } from '../../../../api/firebase';
  */
 export const migrateTeamToIdBased = async (teamId: string): Promise<boolean> => {
   try {
-    console.log(`🔄 Starting migration for team: ${teamId}`);
+    
     
     // Get the team document
     const teamDoc = await getDocs(query(collection(db, 'teams'), where('__name__', '==', teamId)));
@@ -24,13 +24,13 @@ export const migrateTeamToIdBased = async (teamId: string): Promise<boolean> => 
     
     // Check if team has embedded player objects
     if (!teamData.players || !Array.isArray(teamData.players) || teamData.players.length === 0) {
-      console.log(`ℹ️ Team ${teamId} has no players to migrate`);
+      
       return true;
     }
     
     // Check if already migrated (players are strings)
     if (typeof teamData.players[0] === 'string') {
-      console.log(`✅ Team ${teamId} already migrated`);
+      
       return true;
     }
     
@@ -48,7 +48,7 @@ export const migrateTeamToIdBased = async (teamId: string): Promise<boolean> => 
       });
       
       playerIds.push(playerDoc.id);
-      console.log(`✅ Created player document: ${playerDoc.id} for ${playerData.name}`);
+      
     }
     
     // Update team document to use player IDs instead of embedded objects
@@ -58,7 +58,7 @@ export const migrateTeamToIdBased = async (teamId: string): Promise<boolean> => 
       originalPlayerData: teamData.players, // Keep backup for safety
     });
     
-    console.log(`✅ Successfully migrated team ${teamId} with ${playerIds.length} players`);
+    
     return true;
     
   } catch (error) {
@@ -72,7 +72,7 @@ export const migrateTeamToIdBased = async (teamId: string): Promise<boolean> => 
  */
 export const migrateEventTeams = async (eventId: string): Promise<void> => {
   try {
-    console.log(`🔄 Starting migration for all teams in event: ${eventId}`);
+    
     
     const teamsQuery = query(collection(db, 'teams'), where('eventId', '==', eventId));
     const teamsSnapshot = await getDocs(teamsQuery);
@@ -85,7 +85,7 @@ export const migrateEventTeams = async (eventId: string): Promise<void> => {
       if (success) successCount++;
     }
     
-    console.log(`✅ Migration complete: ${successCount}/${totalCount} teams migrated successfully`);
+    
     
   } catch (error) {
     console.error(`❌ Failed to migrate event teams:`, error);

@@ -17,7 +17,14 @@ import {
   arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../../../../api/firebase'; // Adjust the import path to your firebase config
-import { MatchData, Player, Delivery, Team } from '../types';
+import { MatchData, Player, Delivery } from '../types';
+
+// Define Team type locally if not exported from '../types'
+type Team = {
+  id: string;
+  name: string;
+  // Add other properties as needed
+};
 
 /**
  * Subscribes to real-time updates for the main match document.
@@ -51,7 +58,6 @@ export const getTeam = async (teamId: string): Promise<Team | null> => {
     // Assumes your Team type has an 'id' and 'name' property
     return { id: teamSnap.id, ...teamSnap.data() } as Team;
   } else {
-    console.warn(`Team with ID ${teamId} not found.`);
     return null;
   }
 };
@@ -201,17 +207,9 @@ export const addStateToUndoStack = async (matchId: string, inningsNum: number, s
             }
             
             await updateDoc(matchDocRef, { undoStates });
-            console.log(`💾 Undo state saved for innings ${inningsNum}. Total states: ${undoStates.length}`);
-            
-            // Verify the save actually worked by reading it back immediately
-            const verifyDoc = await getDoc(matchDocRef);
-            const verifyData = verifyDoc.data();
-            const verifyStates = verifyData?.undoStates || [];
-            console.log(`✅ Verification: ${verifyStates.length} states actually saved to Firestore`);
         }
     } catch (error) {
         console.error("❌ Error adding state to undo stack:", error);
-        console.error("❌ Error details:", error);
         // Don't throw error for undo stack failures - it's not critical for gameplay
     }
 };
@@ -225,32 +223,25 @@ export const getLatestUndoState = async (matchId: string, inningsNum: number): P
         const matchDoc = await getDoc(matchDocRef);
         
         if (!matchDoc.exists()) {
-            console.log('📄 Match document not found');
             return null;
         }
         
         const matchData = matchDoc.data();
         const undoStates = matchData.undoStates || [];
         
-        console.log(`🔍 Raw undo states in document:`, undoStates);
-        console.log(`🔍 Looking for innings ${inningsNum} states...`);
+        
+        
         
         // Find the most recent undo state for this innings
         const inningsUndoStates = undoStates
-            .filter((state: any) => {
-                console.log(`🔍 Checking state: innings=${state.innings}, target=${inningsNum}, match=${state.innings === inningsNum}`);
-                return state.innings === inningsNum;
-            })
+            .filter((state: any) => state.innings === inningsNum)
             .sort((a: any, b: any) => b.timestamp - a.timestamp);
-        
-        console.log(`🔍 Found ${inningsUndoStates.length} undo states for innings ${inningsNum}`);
         
         if (inningsUndoStates.length === 0) {
             return null;
         }
         
         const latestState = inningsUndoStates[0];
-        console.log(`📤 Returning undo state with timestamp: ${latestState.timestamp}`);
         return { 
             id: latestState.timestamp.toString(), 
             data: latestState.state 
@@ -294,38 +285,38 @@ export const deleteFromUndoStack = async (matchId: string, inningsNum: number, d
 
 export const getTeamPlayerIds = async (teamId: string): Promise<string[]> => {
   if (!teamId) return [];
-  console.log('🔍 Fetching team player IDs for teamId:', teamId);
+  
   
   const teamDocRef = doc(db, 'teams', teamId);
   const teamDoc = await getDoc(teamDocRef);
   
   if (teamDoc.exists()) {
     const teamData = teamDoc.data();
-    console.log('📄 Team data structure:', teamData);
+    
     
     // Get playerIds array (optimized structure)
     if (teamData.playerIds && Array.isArray(teamData.playerIds) && teamData.playerIds.length > 0) {
-      console.log('✅ Found player IDs:', teamData.playerIds);
+      
       return teamData.playerIds;
     }
     
-    console.log('❌ No playerIds found in team');
+    
     return [];
   } else {
-    console.log('❌ Team document does not exist for teamId:', teamId);
+    
     return [];
   }
 };
 
 export const getPlayerDocs = async (ids: string[]): Promise<Player[]> => {
   if (!ids || ids.length === 0) {
-    console.log('No player IDs provided');
+    
     return [];
   }
-  console.log('Fetching player documents for IDs:', ids);
+  
   const playersQuery = query(collection(db, 'players'), where('__name__', 'in', ids));
   const snapshot = await getDocs(playersQuery);
   const players = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Player));
-  console.log('Players found:', players);
+  
   return players;
 };

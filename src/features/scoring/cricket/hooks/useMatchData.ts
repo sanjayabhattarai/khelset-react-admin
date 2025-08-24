@@ -60,8 +60,6 @@ export const useMatchData = (matchId: string) => {
     const fetchRelatedData = async () => {
       if (!matchData) return;
       try {
-        console.log('Fetching related data for match:', matchData);
-        
         // Get team documents and names
         const [teamADoc, teamBDoc] = await Promise.all([
           getTeam(matchData.teamA_id),
@@ -83,17 +81,11 @@ export const useMatchData = (matchId: string) => {
           getPlayerDocs(teamBIds),
         ]);
 
-        console.log('Team players loaded:', {
-          teamA: fetchedTeamAPlayers,
-          teamB: fetchedTeamBPlayers
-        });
-
         setTeamAPlayers(fetchedTeamAPlayers);
         setTeamBPlayers(fetchedTeamBPlayers);
         
         // Check if we have players for both teams
         if (fetchedTeamAPlayers.length === 0 || fetchedTeamBPlayers.length === 0) {
-          console.warn('Some teams have no players loaded');
           setError("Some teams have no players. Please check team setup.");
         } else {
           setError(null); // Clear any previous errors
@@ -232,36 +224,20 @@ const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWick
   
 
 // FIXED: Process wicket properly - delivery already processed in onWicket, just handle dismissal
-const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: string, fielderId?: string, runsScored: number = 0) => {
+const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: string, fielderId?: string) => {
     if (!matchData) return;
 
     // SIMPLE UNDO: Save current state before wicket confirmation
     setLastDeliveryState(JSON.parse(JSON.stringify(matchData))); // Deep copy
 
     // The delivery was already processed in onWicket (ball counted, over completion handled)
-    // We only need to process the wicket dismissal and any additional runs for run-outs
+    // We only need to process the wicket dismissal
     
     let finalData = matchData;
     
-    if (type === 'run_out' && runsScored > 0) {
-      // Only for run-outs, process the additional runs
-      const runOutResult = processEnhancedDelivery(matchData, {
-        runs: runsScored,
-        isLegal: true,
-        isWicket: false, // Don't double-count the wicket
-        wicketType: undefined
-      });
-      
-      finalData = runOutResult.updatedData;
-      
-      // Handle over completion for run-out scenario
-      if (runOutResult.isOverComplete && !runOutResult.isInningsOver) {
-        finalData = processEndOfOver(finalData);
-      } else if (runOutResult.isInningsOver) {
-        finalData.currentBowlerId = null;
-        finalData.previousBowlerId = matchData.currentBowlerId;
-      }
-    }
+    // CRITICAL FIX: Don't double-process runs for run-outs
+    // The runs were already processed in the original handleDelivery call
+    // We only need to handle the dismissal logic here
     
     // Process the wicket dismissal (batsman positioning and stats)
     finalData = processWicket(finalData, type, batsmanId, fielderId);
@@ -344,7 +320,6 @@ const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: stri
     
     try {
       setIsUpdating(true);
-      console.log('🔄 Undoing last delivery - restoring previous state...');
       
       // Simply restore the last saved state
       await updateMatch(matchId, lastDeliveryState);
@@ -352,7 +327,6 @@ const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: stri
       // Clear the undo state since it's been used
       setLastDeliveryState(null);
       
-      console.log('✅ Undo successful! Previous state restored.');
     } catch (error) {
       console.error('❌ Undo failed:', error);
       alert("Failed to undo. Please try again.");

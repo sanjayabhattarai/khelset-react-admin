@@ -123,15 +123,19 @@ const onWicketConfirm = useCallback(async (type: WicketType, fielderId: string |
   try {
     // For run-outs, use the selected batsman ID, otherwise use the original wicketInfo batsmanId
     const finalBatsmanId = (type === 'run_out' && batsmanId) ? batsmanId : wicketInfo.batsmanId;
-    // Pass runsScored for run-outs to add completed runs to the score
-    await handleWicketConfirm(type, finalBatsmanId, fielderId, runsScored);
-    setUiState('selecting_next_batsman');
+    await handleWicketConfirm(type, finalBatsmanId, fielderId);
+    // FIX: If innings is over, set UI state to 'innings_break' or 'match_over'
+    if (matchData && matchData.innings1 && matchData.innings1.wickets >= (matchData.rules.playersPerTeam - 1)) {
+      setUiState('innings_break'); // or 'match_over' for last innings
+    } else {
+      setUiState('selecting_next_batsman');
+    }
   } catch (e) { console.error("Failed to confirm wicket:", e); }
   finally {
     setWicketInfo(null);
     setIsUpdating(false);
   }
-}, [handleWicketConfirm, wicketInfo]);
+}, [handleWicketConfirm, wicketInfo, matchData]);
 
   const onNextBatsmanSelect = useCallback(async (batsmanId: string) => {
     await handleSetNextBatsman(batsmanId);
