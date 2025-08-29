@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useMemo, useCallback, } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { generateCommentary } from '../logic/commentaryGenerator';
 
 // --- Services ---
 // It uses the firestoreService to communicate with the database.
@@ -15,6 +16,7 @@ import {
   updateMatch,
   addDeliveryToHistory
 } from '../services/firestoreService';
+import { addDeliveryToInningsArray } from '../services/addDeliveryToInningsArray';
 
 // --- Logic Utilities ---
 // It uses pure utility functions for complex rule calculations.
@@ -154,104 +156,112 @@ export const useMatchData = (matchId: string) => {
 const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: boolean, extraType?: ExtraType, wicketType?: WicketType, runType?: 'hit' | 'bye' | 'leg_bye') => {
   if (!matchData) throw new Error("Match data not available");
 
-  // SIMPLE UNDO: Save current state before making changes
-  setLastDeliveryState(JSON.parse(JSON.stringify(matchData))); // Deep copy
+  // Helper to get player name from all fetched players
+  const allPlayers = [...teamAPlayers, ...teamBPlayers];
+  const getPlayerName = (id: string) => allPlayers.find(p => p.id === id)?.name || id.toString();
 
-  // Use enhanced delivery processing for better cricket rules handling
+  setLastDeliveryState(JSON.parse(JSON.stringify(matchData)));
+
+  // STEP 1: Process the delivery and get the updated data
   let result = processEnhancedDelivery(matchData, { runs, isLegal, isWicket, extraType, wicketType, runType });
   let dataToSave = result.updatedData;
 
+  // STEP 2: Process end-of-over or end-of-innings logic if needed
   if (result.isOverComplete && !result.isInningsOver) {
-    // Process end of over normally (rotate strike, set next bowler to null)
     dataToSave = processEndOfOver(result.updatedData);
   } else if (result.isInningsOver) {
-    // FIXED: When innings ends, ensure currentBowlerId is null so UI doesn't ask for next bowler
     dataToSave.currentBowlerId = null;
     dataToSave.previousBowlerId = matchData.currentBowlerId;
   }
+  
+  // STEP 3: Create the delivery log using the FINAL, updated data.
+  const updatedInnings = dataToSave.currentInnings === 1 ? dataToSave.innings1 : dataToSave.innings2;
 
-  // CRITICAL FIX: Save the delivery data immediately, even if there's a wicket
-  // This ensures that over completion state is persisted before wicket confirmation
-  await updateMatch(matchId, dataToSave);
+  const overNumber = Math.floor(updatedInnings.overs);
+  const ballInOver = Math.round((updatedInnings.overs % 1) * 10);
+  
+  // Get wicket info from the result
+  const wicketInfo = result.isWicketFallen && wicketType ? {
+    type: wicketType,
+    batsmanId: matchData.onStrikeBatsmanId!,
+  } : null;
 
-  // Use the enhanced result's run breakdown for accurate delivery logging
   const runsBreakdown = result.runsBreakdown || {
     batsmanRuns: (isLegal && !extraType) ? runs : 0,
     extraRuns: (extraType === 'wide' || extraType === 'no_ball') ? 1 + runs : (extraType ? runs : 0),
     totalRuns: runs,
     penaltyRuns: 0
   };
-
-  const updatedInnings = dataToSave.currentInnings === 1 ? dataToSave.innings1 : dataToSave.innings2;
-  const updatedBowler = updatedInnings.bowlingStats.find((b: any) => b.isCurrent === true);
-  const overNumber = updatedBowler ? Math.floor(updatedBowler.overs) : 0;
-  const ballInOver = updatedBowler ? Math.round((updatedBowler.overs - overNumber) * 10) : 0;
-
-  // Build wicket info conditionally to avoid undefined values
-  const wicketInfo = result.isWicketFallen && wicketType ? {
-    type: wicketType,
-    batsmanId: matchData.onStrikeBatsmanId!,
-    // Only include fielderId if it has a valid value (not for run-outs from wide/no-ball extras)
-    // fielderId will be added by WicketModal for actual fielder-involved dismissals
-  } : null;
+  
+  const commentary = generateCommentary({
+    runs,
+    isWicket,
+    extraType,
+    wicketType,
+  });
 
   const deliveryLog: Delivery = {
-      ballId: uuidv4(),
-      overNumber,
-      ballInOver,
-      batsmanId: matchData.onStrikeBatsmanId!,
-      bowlerId: matchData.currentBowlerId!,
-      runsScored: { 
-        batsman: runsBreakdown.batsmanRuns, 
-        extras: runsBreakdown.extraRuns, 
-        total: runsBreakdown.totalRuns 
-      },
-      isWicket: result.isWicketFallen,
-      isLegal,
-      ...(extraType && { extraType }),
-      ...(wicketInfo && { wicketInfo }),
+    ballId: uuidv4(),
+    overNumber,
+    ballInOver,
+    batsmanId: matchData.onStrikeBatsmanId!,
+    bowlerId: matchData.currentBowlerId!,
+    batsmanName: getPlayerName(matchData.onStrikeBatsmanId!),
+    bowlerName: getPlayerName(matchData.currentBowlerId!),
+    runsScored: {
+      batsman: runsBreakdown.batsmanRuns,
+      extras: runsBreakdown.extraRuns,
+      total: runsBreakdown.totalRuns
+    },
+    isWicket: result.isWicketFallen,
+    isLegal,
+    ...(extraType && { extraType }),
+    ...(wicketInfo && { wicketInfo }),
+    commentary,
   };
-  
-  await addDeliveryToHistory(matchId, matchData.currentInnings, deliveryLog);
-  // NOTE: Match data was already saved above immediately after processing
 
+  // STEP 4: Update Firestore with the new data and add delivery to history.
+  await updateMatch(matchId, dataToSave);
+  await addDeliveryToHistory(matchId, matchData.currentInnings, deliveryLog);
+  await addDeliveryToInningsArray(matchId, matchData.currentInnings, deliveryLog);
+
+  // STEP 5: Check for innings end
   if (result.isInningsOver) {
     await handleInningsEnd();
   }
-  
+
   return result;
-}, [matchData, matchId, handleInningsEnd]);
+}, [matchData, matchId, handleInningsEnd, teamAPlayers, teamBPlayers]);
   
 
 // FIXED: Process wicket properly - delivery already processed in onWicket, just handle dismissal
 const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: string, fielderId?: string) => {
-    if (!matchData) return;
+  if (!matchData) return;
 
-    // SIMPLE UNDO: Save current state before wicket confirmation
-    setLastDeliveryState(JSON.parse(JSON.stringify(matchData))); // Deep copy
+  // SIMPLE UNDO: Save current state before wicket confirmation
+  setLastDeliveryState(JSON.parse(JSON.stringify(matchData))); // Deep copy
 
-    // The delivery was already processed in onWicket (ball counted, over completion handled)
-    // We only need to process the wicket dismissal
-    
-    let finalData = matchData;
-    
-    // CRITICAL FIX: Don't double-process runs for run-outs
-    // The runs were already processed in the original handleDelivery call
-    // We only need to handle the dismissal logic here
-    
-    // Process the wicket dismissal (batsman positioning and stats)
-    finalData = processWicket(finalData, type, batsmanId, fielderId);
-    
-    // Get current innings for checking end conditions
-    const currentInnings = finalData.currentInnings === 1 ? finalData.innings1 : finalData.innings2;
+  // The delivery was already processed in onWicket (ball counted, over completion handled)
+  // We only need to process the wicket dismissal
+  let finalData = matchData;
 
-    // Save the final result to Firestore
-    await updateMatch(matchId, finalData);
+  // CRITICAL FIX: Don't double-process runs for run-outs
+  // The runs were already processed in the original handleDelivery call
+  // We only need to handle the dismissal logic here
 
-    // Check if innings is over
-    if (currentInnings.wickets >= (finalData.rules.playersPerTeam - 1)) {
-        await handleInningsEnd();
-    }
+  // Process the wicket dismissal (batsman positioning and stats)
+  finalData = processWicket(finalData, type, batsmanId, fielderId);
+
+  // Get current innings for checking end conditions
+  const currentInnings = finalData.currentInnings === 1 ? finalData.innings1 : finalData.innings2;
+
+  // Save the final result to Firestore
+  await updateMatch(matchId, finalData);
+
+  // Check if innings is over
+  if (currentInnings.wickets >= (finalData.rules.playersPerTeam - 1)) {
+    await handleInningsEnd();
+  }
 }, [matchData, matchId, handleInningsEnd]);
   
   const handleSetNextBatsman = useCallback(async (batsmanId: string) => {

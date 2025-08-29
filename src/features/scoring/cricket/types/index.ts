@@ -65,6 +65,8 @@ export interface Delivery {
   ballInOver: number;
   batsmanId: string;
   bowlerId: string;
+  batsmanName: string;
+  bowlerName: string;
   runsScored: {
     batsman: number;
     extras: number;
@@ -78,6 +80,7 @@ export interface Delivery {
     batsmanId: string;
     fielderId?: string;
   } | null;
+  commentary?: string;
 }
 
 /**
@@ -93,6 +96,7 @@ export interface Innings {
   ballsInOver: number; // Track balls in current over (0-5)
   battingStats: BattingStat[]; // ✨ UPDATED: Now uses BattingStat
   bowlingStats: Bowler[];
+  deliveryHistory: Delivery[];
 }
 
 /**
