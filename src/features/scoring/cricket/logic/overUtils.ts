@@ -17,8 +17,7 @@ export const processEndOfOver = (
   const innings: Innings = updatedData[inningsKey];
 
   // --- 1. Finalize Over Counts ---
-  // The over is complete, so we increment the overs count and reset the ball count.
-  innings.overs = Math.floor(innings.overs) + 1;
+  // The over is complete, so we reset the ball count. Overs display should be calculated elsewhere using total balls.
   innings.ballsInOver = 0;
 
   // --- 2. Rotate Strike ---
