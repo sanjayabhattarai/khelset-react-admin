@@ -14,7 +14,8 @@ import {
   getPlayerDocs,
   getTeam,
   updateMatch,
-  addDeliveryToHistory
+  addDeliveryToHistory,
+  getEvent
 } from '../services/firestoreService';
 import { addDeliveryToInningsArray } from '../services/addDeliveryToInningsArray';
 
@@ -26,7 +27,7 @@ import { calculateMatchAwards } from '../logic/awardsUtils';
 import { processEndOfOver } from '../logic/overUtils';
 
 // --- Types ---
-import { MatchData, Player, Bowler, BattingStat, ExtraType, WicketType, Delivery } from '../types';
+import { MatchData, Player, Bowler, BattingStat, ExtraType, WicketType, Delivery, EventData } from '../types';
 
 /**
  * A custom hook to fetch and manage all data and actions for a given match ID.
@@ -35,6 +36,7 @@ export const useMatchData = (matchId: string) => {
   // --- STATE MANAGEMENT ---
   // These state variables hold the raw data fetched from Firestore.
   const [matchData, setMatchData] = useState<MatchData | null>(null);
+  const [eventData, setEventData] = useState<EventData | null>(null);
   const [teamAName, setTeamAName] = useState<string>('');
   const [teamBName, setTeamBName] = useState<string>('');
   const [teamAPlayers, setTeamAPlayers] = useState<Player[]>([]);
@@ -62,14 +64,16 @@ export const useMatchData = (matchId: string) => {
     const fetchRelatedData = async () => {
       if (!matchData) return;
       try {
-        // Get team documents and names
-        const [teamADoc, teamBDoc] = await Promise.all([
+        // Get team documents, names, and event data
+        const [teamADoc, teamBDoc, eventDoc] = await Promise.all([
           getTeam(matchData.teamA_id),
           getTeam(matchData.teamB_id),
+          getEvent(matchData.eventId),
         ]);
         
         setTeamAName(teamADoc?.name || 'Team A');
         setTeamBName(teamBDoc?.name || 'Team B');
+        setEventData(eventDoc);
         
         // Get player IDs and fetch players from players collection
         const [teamAIds, teamBIds] = await Promise.all([
@@ -101,6 +105,28 @@ export const useMatchData = (matchId: string) => {
     fetchRelatedData();
   }, [matchData?.teamA_id, matchData?.teamB_id]);
 
+  // --- RULES RESOLUTION ---
+  // Memoized rules that fallback from event to match data
+  const resolvedRules = useMemo(() => {
+    if (!matchData) return null;
+    
+    // Priority order: event rules > match rules > defaults
+    if (eventData?.rules) {
+      return eventData.rules;
+    }
+    
+    if (matchData.rules) {
+      return matchData.rules;
+    }
+    
+    // Default fallback rules
+    return {
+      totalOvers: 20,
+      playersPerTeam: 11,
+      maxOversPerBowler: 4,
+      customRulesText: ''
+    };
+  }, [matchData, eventData]);
 
   // --- DATA UPDATE HANDLERS ---
   // All functions that modify the database state now live inside this hook.
@@ -154,7 +180,7 @@ export const useMatchData = (matchId: string) => {
   // In useMatchData.ts
 
 const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: boolean, extraType?: ExtraType, wicketType?: WicketType, runType?: 'hit' | 'bye' | 'leg_bye') => {
-  if (!matchData) throw new Error("Match data not available");
+  if (!matchData || !resolvedRules) throw new Error("Match data or rules not available");
 
   // Helper to get player name from all fetched players
   const allPlayers = [...teamAPlayers, ...teamBPlayers];
@@ -162,8 +188,11 @@ const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWick
 
   setLastDeliveryState(JSON.parse(JSON.stringify(matchData)));
 
+  // Create match data with resolved rules for scoring functions
+  const matchDataWithRules = { ...matchData, rules: resolvedRules };
+
   // STEP 1: Process the delivery and get the updated data
-  let result = processEnhancedDelivery(matchData, { runs, isLegal, isWicket, extraType, wicketType, runType });
+  let result = processEnhancedDelivery(matchDataWithRules, { runs, isLegal, isWicket, extraType, wicketType, runType });
   let dataToSave = result.updatedData;
 
   // STEP 2: Process end-of-over or end-of-innings logic if needed
@@ -231,12 +260,12 @@ const handleDelivery = useCallback(async (runs: number, isLegal: boolean, isWick
   }
 
   return result;
-}, [matchData, matchId, handleInningsEnd, teamAPlayers, teamBPlayers]);
+}, [matchData, matchId, handleInningsEnd, teamAPlayers, teamBPlayers, resolvedRules]);
   
 
 // FIXED: Process wicket properly - delivery already processed in onWicket, just handle dismissal
 const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: string, fielderId?: string) => {
-  if (!matchData) return;
+  if (!matchData || !resolvedRules) return;
 
   // SIMPLE UNDO: Save current state before wicket confirmation
   setLastDeliveryState(JSON.parse(JSON.stringify(matchData))); // Deep copy
@@ -259,10 +288,10 @@ const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: stri
   await updateMatch(matchId, finalData);
 
   // Check if innings is over
-  if (currentInnings.wickets >= (finalData.rules.playersPerTeam - 1)) {
+  if (currentInnings.wickets >= (resolvedRules.playersPerTeam - 1)) {
     await handleInningsEnd();
   }
-}, [matchData, matchId, handleInningsEnd]);
+}, [matchData, matchId, handleInningsEnd, resolvedRules]);
   
   const handleSetNextBatsman = useCallback(async (batsmanId: string) => {
     if (!matchData) return;
@@ -386,6 +415,7 @@ const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: stri
   return {
     loading, error, matchData, isUpdating,
     teamAPlayers, teamBPlayers, teamAName, teamBName,
+    resolvedRules,
     ...derivedData,
     handleTossComplete,
     handlePlayerSelectionComplete,

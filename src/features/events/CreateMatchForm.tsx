@@ -19,12 +19,6 @@ export function CreateMatchForm({ eventId, approvedTeams }: CreateMatchFormProps
   const [teamAId, setTeamAId] = useState<string>('');
   const [teamBId, setTeamBId] = useState<string>('');
   const [matchTime, setMatchTime] = useState('');
-  
-  // State for the customizable match rules
-  const [totalOvers, setTotalOvers] = useState(20);
-  const [playersPerTeam, setPlayersPerTeam] = useState(11);
-  const [maxOversPerBowler, setMaxOversPerBowler] = useState(4);
-  const [customRulesText, setCustomRulesText] = useState('');
 
   // State for form handling
   const [loading, setLoading] = useState(false);
@@ -46,14 +40,6 @@ export function CreateMatchForm({ eventId, approvedTeams }: CreateMatchFormProps
     setMessage('');
 
     try {
-      // Assemble the rules object from the form state.
-      const matchRules = {
-        totalOvers,
-        playersPerTeam,
-        maxOversPerBowler,
-        customRulesText,
-      };
-
       // ✨ FIX: Define a function to generate a fresh, default innings object.
       // This ensures that innings1 and innings2 are two completely separate objects
       // and that the history arrays are correctly initialized as empty.
@@ -87,7 +73,6 @@ export function CreateMatchForm({ eventId, approvedTeams }: CreateMatchFormProps
         isFreeHit: false,
         tossWinnerId: null,
         tossDecision: null,
-        rules: matchRules,
         // ✨ FIX: Call the function to create two independent innings objects.
         innings1: createDefaultInnings(),
         innings2: createDefaultInnings(),
@@ -97,9 +82,8 @@ export function CreateMatchForm({ eventId, approvedTeams }: CreateMatchFormProps
       // Create the new document in the 'matches' collection.
       await addDoc(collection(db, 'matches'), newMatchData);
 
-      setMessage('Match created successfully with custom rules!');
+      setMessage('Match created successfully!');
       setMatchTime('');
-      setCustomRulesText('');
 
     } catch (err) {
       setMessage('Failed to create match.');
@@ -143,29 +127,6 @@ export function CreateMatchForm({ eventId, approvedTeams }: CreateMatchFormProps
         <div>
           <label htmlFor="matchTime" className="block text-sm font-medium text-gray-300">Match Time</label>
           <input id="matchTime" type="datetime-local" value={matchTime} onChange={(e) => setMatchTime(e.target.value)} required className="w-full mt-1 px-3 py-2 bg-gray-600 text-white border border-gray-500 rounded-md" />
-        </div>
-
-        {/* Match Rules Section */}
-        <div className="border-t border-gray-600 pt-4">
-            <h5 className="text-md font-bold mb-2 text-white">Match Rules</h5>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <label htmlFor="totalOvers" className="block text-sm font-medium text-gray-300">Total Overs</label>
-                    <input id="totalOvers" type="number" value={totalOvers} onChange={(e) => setTotalOvers(Number(e.target.value))} className="w-full mt-1 px-3 py-2 bg-gray-600 text-white border border-gray-500 rounded-md" />
-                </div>
-                <div>
-                    <label htmlFor="playersPerTeam" className="block text-sm font-medium text-gray-300">Players per Team</label>
-                    <input id="playersPerTeam" type="number" value={playersPerTeam} onChange={(e) => setPlayersPerTeam(Number(e.target.value))} className="w-full mt-1 px-3 py-2 bg-gray-600 text-white border border-gray-500 rounded-md" />
-                </div>
-                <div>
-                    <label htmlFor="maxOversPerBowler" className="block text-sm font-medium text-gray-300">Max Overs/Bowler</label>
-                    <input id="maxOversPerBowler" type="number" value={maxOversPerBowler} onChange={(e) => setMaxOversPerBowler(Number(e.target.value))} className="w-full mt-1 px-3 py-2 bg-gray-600 text-white border border-gray-500 rounded-md" />
-                </div>
-            </div>
-            <div className="mt-4">
-                <label htmlFor="customRules" className="block text-sm font-medium text-gray-300">Other Rules / Description</label>
-                <textarea id="customRules" value={customRulesText} onChange={(e) => setCustomRulesText(e.target.value)} rows={3} className="w-full mt-1 px-3 py-2 bg-gray-600 text-white border border-gray-500 rounded-md"></textarea>
-            </div>
         </div>
 
         <button type="submit" disabled={loading} className="w-full px-4 py-2 font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 disabled:bg-gray-500">

@@ -17,7 +17,7 @@ import {
   arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../../../../api/firebase'; // Adjust the import path to your firebase config
-import { MatchData, Player, Delivery, Team } from '../types';
+import { MatchData, Player, Delivery, Team, EventData } from '../types';
 
 // Type conversion utility
 const convertToDoubles = (data: any): any => {
@@ -351,4 +351,22 @@ export const getPlayersByTeamId = async (teamId: string): Promise<Player[]> => {
   const players = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Player));
   
   return players;
+};
+
+/**
+ * Gets event data from Firestore.
+ */
+export const getEvent = async (eventId: string): Promise<EventData | null> => {
+  if (!eventId) {
+    return null;
+  }
+  
+  const eventDocRef = doc(db, 'events', eventId);
+  const eventDoc = await getDoc(eventDocRef);
+  
+  if (!eventDoc.exists()) {
+    return null;
+  }
+  
+  return { id: eventDoc.id, ...eventDoc.data() } as EventData;
 };

@@ -119,6 +119,7 @@ export interface MatchAwards {
  * Represents the entire state of the main match document in Firestore.
  */
 export interface MatchData {
+  eventId: string;
   teamA_id: string;
   teamB_id: string;
   status: 'Upcoming' | 'Live' | 'Innings Break' | 'Completed';
@@ -150,3 +151,23 @@ export interface Team {
  * Defines all the possible states our UI can be in.
  */
 export type UiState = 'waiting_for_toss' | 'selecting_opening_players' | 'scoring' | 'selecting_next_batsman' | 'selecting_next_bowler' | 'selecting_wicket_type' | 'innings_break' | 'match_over';
+
+/**
+ * Represents event data with match rules configuration.
+ */
+export interface EventData {
+  id: string;
+  name: string;
+  description?: string;
+  eventType: string;
+  scheduledTime?: any;
+  status: string;
+  rules?: {
+    totalOvers: number;
+    playersPerTeam: number;
+    maxOversPerBowler: number;
+    customRulesText: string;
+  };
+  createdBy: string;
+  createdAt?: any;
+}

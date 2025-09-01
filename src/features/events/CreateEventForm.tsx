@@ -19,6 +19,12 @@ export function CreateEventForm({ onEventCreated }: CreateEventFormProps) {
   const [date, setDate] = useState('');
   const [deadline, setDeadline] = useState('');
 
+  // State for match rules (moved from CreateMatchForm)
+  const [totalOvers, setTotalOvers] = useState(20);
+  const [playersPerTeam, setPlayersPerTeam] = useState(11);
+  const [maxOversPerBowler, setMaxOversPerBowler] = useState(4);
+  const [customRulesText, setCustomRulesText] = useState('');
+
   // State for poster upload
   const [posterImage, setPosterImage] = useState<File | null>(null);
   const [posterPreview, setPosterPreview] = useState<string | null>(null);
@@ -102,7 +108,7 @@ export function CreateEventForm({ onEventCreated }: CreateEventFormProps) {
         setUploadingPoster(false);
       }
 
-      // FIXED: Create a new document with user association
+      // FIXED: Create a new document with user association and match rules
       await addDoc(collection(db, 'events'), {
         eventName: eventName,
         location: location,
@@ -112,6 +118,13 @@ export function CreateEventForm({ onEventCreated }: CreateEventFormProps) {
         registrationDeadline: new Date(deadline),
         status: 'upcoming', // Set a default status for new events
         posterUrl: posterUrl, // Add poster URL to the event document
+        // Add match rules to the event
+        rules: {
+          totalOvers,
+          playersPerTeam,
+          maxOversPerBowler,
+          customRulesText,
+        },
         createdAt: serverTimestamp(), // Add a server-side timestamp
         createdBy: user.uid, // Associate event with current user
         createdByEmail: user.email, // Store user email for reference
@@ -124,6 +137,11 @@ export function CreateEventForm({ onEventCreated }: CreateEventFormProps) {
       setSportType('cricket');
       setDate('');
       setDeadline('');
+      // Clear match rules fields
+      setTotalOvers(20);
+      setPlayersPerTeam(11);
+      setMaxOversPerBowler(4);
+      setCustomRulesText('');
       setPosterImage(null);
       setPosterPreview(null);
       
@@ -259,6 +277,66 @@ export function CreateEventForm({ onEventCreated }: CreateEventFormProps) {
             />
           </div>
         </div>
+
+        {/* Match Rules Section - Only show for cricket events */}
+        {sportType === 'cricket' && (
+          <div className="border-t border-gray-600 pt-6">
+            <h4 className="text-lg font-semibold text-white mb-4">Match Rules</h4>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label htmlFor="totalOvers" className="block text-sm font-medium text-gray-300">Total Overs</label>
+                <input
+                  id="totalOvers"
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={totalOvers}
+                  onChange={(e) => setTotalOvers(Number(e.target.value))}
+                  className="w-full mt-1 px-3 py-2 bg-gray-700 text-white border border-gray-600 rounded-md"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="playersPerTeam" className="block text-sm font-medium text-gray-300">Players per Team</label>
+                <input
+                  id="playersPerTeam"
+                  type="number"
+                  min="1"
+                  max="15"
+                  value={playersPerTeam}
+                  onChange={(e) => setPlayersPerTeam(Number(e.target.value))}
+                  className="w-full mt-1 px-3 py-2 bg-gray-700 text-white border border-gray-600 rounded-md"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="maxOversPerBowler" className="block text-sm font-medium text-gray-300">Max Overs/Bowler</label>
+                <input
+                  id="maxOversPerBowler"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={maxOversPerBowler}
+                  onChange={(e) => setMaxOversPerBowler(Number(e.target.value))}
+                  className="w-full mt-1 px-3 py-2 bg-gray-700 text-white border border-gray-600 rounded-md"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label htmlFor="customRulesText" className="block text-sm font-medium text-gray-300">Other Rules / Description</label>
+              <textarea
+                id="customRulesText"
+                rows={3}
+                value={customRulesText}
+                onChange={(e) => setCustomRulesText(e.target.value)}
+                placeholder="Any additional rules or match format details..."
+                className="w-full mt-1 px-3 py-2 bg-gray-700 text-white border border-gray-600 rounded-md"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Submit Button */}
         <button
