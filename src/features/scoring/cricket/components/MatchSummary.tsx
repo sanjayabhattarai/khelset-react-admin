@@ -11,7 +11,7 @@ export function MatchSummary({ matchData, teamAName, teamBName }: MatchSummaryPr
   
   // This logic determines the winner and the margin of victory.
   const getResult = () => {
-    const { innings1, innings2, teamA_id, teamB_id } = matchData;
+    const { innings1, innings2, teamA_id } = matchData;
 
     if (!innings1 || !innings2) {
       return { winnerName: "TBD", margin: "Match Incomplete" };

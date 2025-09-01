@@ -19,6 +19,27 @@ import {
 import { db } from '../../../../api/firebase'; // Adjust the import path to your firebase config
 import { MatchData, Player, Delivery, Team } from '../types';
 
+// Type conversion utility
+const convertToDoubles = (data: any): any => {
+  if (typeof data === 'number') {
+    return parseFloat(data.toString());
+  }
+  
+  if (Array.isArray(data)) {
+    return data.map(convertToDoubles);
+  }
+  
+  if (typeof data === 'object' && data !== null) {
+    const converted: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      converted[key] = convertToDoubles(value);
+    }
+    return converted;
+  }
+  
+  return data;
+};
+
 /**
  * Subscribes to real-time updates for the main match document.
  */
@@ -57,11 +78,14 @@ export const getTeam = async (teamId: string): Promise<Team | null> => {
 
 /**
  * Updates the main match document in Firestore.
+ * Converts all numeric values to doubles for Flutter compatibility.
  */
 export const updateMatch = async (matchId: string, data: { [key: string]: any }) => {
   const matchDocRef = doc(db, 'matches', matchId);
   try {
-    await updateDoc(matchDocRef, data);
+    // Convert all numeric values to doubles to ensure Flutter compatibility
+    const convertedData = convertToDoubles(data);
+    await updateDoc(matchDocRef, convertedData);
   } catch (error) {
     console.error("Error updating match document:", error);
     throw error;

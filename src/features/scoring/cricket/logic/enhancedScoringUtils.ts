@@ -160,20 +160,23 @@ export const processEnhancedDelivery = (
   if (isLegal && extraType !== 'wide' && extraType !== 'no_ball') {
     innings.ballsInOver += 1;
     
-    // FIXED: Calculate bowler's overs correctly
-    // Bowler's balls in current over should match innings.ballsInOver
+    // Check if over is complete (6 legal balls)
+    if (innings.ballsInOver >= 6) {
+      isOverComplete = true;
+      // Reset balls for next over
+      innings.ballsInOver = 0;
+    }
+    
+    // Calculate bowler's overs correctly
+    // ballsInOver goes 1,2,3,4,5,6 then resets to 0
     const bowlerCompletedOvers = Math.floor(currentBowler.overs);
-    const bowlerTotalBalls = (bowlerCompletedOvers * 6) + innings.ballsInOver;
+    const bowlerTotalBalls = (bowlerCompletedOvers * 6) + (isOverComplete ? 6 : innings.ballsInOver);
     currentBowler.overs = calculateOversDisplay(bowlerTotalBalls);
     
     // Calculate innings overs display
     const inningsCompletedOvers = Math.floor(innings.overs);
-    const inningsTotalBalls = (inningsCompletedOvers * 6) + innings.ballsInOver;
+    const inningsTotalBalls = (inningsCompletedOvers * 6) + (isOverComplete ? 6 : innings.ballsInOver);
     innings.overs = calculateOversDisplay(inningsTotalBalls);
-
-    if (innings.ballsInOver >= 6) {
-      isOverComplete = true;
-    }
   }
 
   // --- 6. Handle Wickets ---
@@ -243,10 +246,19 @@ export const processEnhancedDelivery = (
 };
 
 /**
- * Helper function to format overs display correctly (e.g., 4.5, 5.0).
+ * Helper function to format overs display correctly for cricket (e.g., 4.6, 5.1).
+ * In cricket, overs go: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1.1, 1.2, etc.
+ * The decimal part represents balls (1-6), not a mathematical fraction.
  */
 const calculateOversDisplay = (balls: number): number => {
   const completedOvers = Math.floor(balls / 6);
   const remainingBalls = balls % 6;
-  return parseFloat(`${completedOvers}.${remainingBalls}`);
+  
+  // If no balls in current over, show completed overs as whole number
+  if (remainingBalls === 0 && completedOvers > 0) {
+    return completedOvers;
+  }
+  
+  // Show as over.ball format (e.g., 4.6 for 4 overs and 6th ball)
+  return parseFloat(`${completedOvers}.${remainingBalls === 0 ? 1 : remainingBalls}`);
 };

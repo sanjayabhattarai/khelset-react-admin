@@ -117,7 +117,7 @@ const onDelivery = useCallback(async (runs: number, isLegal: boolean, isWicket: 
   }, [matchData, handleDelivery, isUpdating]);
 
  // Handle wicket confirmation with runs for run-outs
-const onWicketConfirm = useCallback(async (type: WicketType, fielderId: string | undefined, runsScored: number, batsmanId?: string) => {
+const onWicketConfirm = useCallback(async (type: WicketType, fielderId: string | undefined, _runsScored: number, batsmanId?: string) => {
   if (!wicketInfo) return;
   setIsUpdating(true);
   try {

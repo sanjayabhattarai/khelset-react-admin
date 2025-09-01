@@ -78,7 +78,6 @@ export const migrateEventTeams = async (eventId: string): Promise<void> => {
     const teamsSnapshot = await getDocs(teamsQuery);
     
     let successCount = 0;
-    let totalCount = teamsSnapshot.docs.length;
     
     for (const teamDoc of teamsSnapshot.docs) {
       const success = await migrateTeamToIdBased(teamDoc.id);
