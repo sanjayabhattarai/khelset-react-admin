@@ -21,14 +21,15 @@ export type WicketType = 'bowled' | 'caught' | 'lbw' | 'run_out' | 'stumped' | '
  */
 export type ExtraType = 'wide' | 'no_ball' | 'bye' | 'leg_bye';
 
-// ✨ ADDED: A dedicated type for dismissal information. This replaces the old inline object.
+/**
+ * A dedicated type for dismissal information.
+ */
 export interface Wicket {
   type: WicketType;
   fielderId?: string;
   bowlerId: string;
 }
 
-// ✨ RENAMED: from 'Batsman' for clarity and added more fields.
 /**
  * Represents a player's batting statistics within an innings.
  */
@@ -40,10 +41,9 @@ export interface BattingStat {
   fours: number;
   sixes: number;
   status: 'not_out' | 'out';
-  dismissal?: Wicket; // Uses the new Wicket type
+  dismissal?: Wicket;
 }
 
-// ✨ UPDATED: The 'isCurrent' flag has been added.
 /**
  * Represents a bowler's statistics within an innings.
  */
@@ -94,7 +94,7 @@ export interface Innings {
   wickets: number;
   overs: number;
   ballsInOver: number; // Track balls in current over (0-5)
-  battingStats: BattingStat[]; // ✨ UPDATED: Now uses BattingStat
+  battingStats: BattingStat[];
   bowlingStats: Bowler[];
   deliveryHistory: Delivery[];
 }
@@ -109,7 +109,9 @@ export interface MatchRules {
     customRulesText: string;
 }
 
-// ✨ ADDED: A dedicated type for match awards.
+/**
+ * A dedicated type for match awards.
+ */
 export interface MatchAwards {
   bestBatsmanId: string | null;
   topWicketTakerId: string | null;
@@ -134,7 +136,7 @@ export interface MatchData {
   rules: MatchRules;
   innings1: Innings;
   innings2: Innings;
-  awards?: MatchAwards; // ✨ ADDED: Awards object
+  awards?: MatchAwards;
 }
 
 export interface Team {

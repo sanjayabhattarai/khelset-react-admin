@@ -5,7 +5,6 @@
 import { useState, useEffect } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../api/firebase';
-// ✨ FIX: We import the type, not a constant, to ensure we can create clean copies.
 import { Innings } from '../scoring/cricket/types';
 
 // Define the shape of the props this component will receive
@@ -40,7 +39,7 @@ export function CreateMatchForm({ eventId, approvedTeams }: CreateMatchFormProps
     setMessage('');
 
     try {
-      // ✨ FIX: Define a function to generate a fresh, default innings object.
+      // Define a function to generate a fresh, default innings object.
       // This ensures that innings1 and innings2 are two completely separate objects
       // and that the history arrays are correctly initialized as empty.
       const createDefaultInnings = (): Innings => ({
@@ -73,7 +72,7 @@ export function CreateMatchForm({ eventId, approvedTeams }: CreateMatchFormProps
         isFreeHit: false,
         tossWinnerId: null,
         tossDecision: null,
-        // ✨ FIX: Call the function to create two independent innings objects.
+        // Call the function to create two independent innings objects.
         innings1: createDefaultInnings(),
         innings2: createDefaultInnings(),
         createdAt: serverTimestamp(),

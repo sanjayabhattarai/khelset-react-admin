@@ -6,13 +6,9 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ManageEventPage } from './pages/ManageEventPage';
 import { ManageTeamPage } from './pages/ManageTeamPage';
 import { LiveScoringPage } from './pages/LiveScoringPage';
-// import { ColorTest } from './components/ColorTest';
 
 function App() {
   const { user, loading } = useAuth();
-
-  // Temporary: Show color test for debugging
-  // return <ColorTest />;
 
   if (loading) {
     return (
