@@ -352,7 +352,6 @@ const handleWicketConfirm = useCallback(async (type: WicketType, batsmanId: stri
 
   const handleUndo = useCallback(async () => {
     if (!lastDeliveryState) {
-      console.log('❌ No last delivery state available for undo');
       alert("No delivery to undo.");
       return;
     }
