@@ -63,9 +63,19 @@ export function CreateEventForm({ onEventCreated }: CreateEventFormProps) {
       const imageRef = ref(storage, `event-posters/${user?.uid}/${Date.now()}-${file.name}`);
       await uploadBytes(imageRef, file);
       return await getDownloadURL(imageRef);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Storage upload error:', error);
-      throw new Error('Firebase Storage is not enabled. Please enable it in Firebase Console.');
+      
+      // More specific error messages
+      if (error.code === 'storage/unauthorized') {
+        throw new Error('You do not have permission to upload files. Please contact admin.');
+      } else if (error.code === 'storage/invalid-format') {
+        throw new Error('Invalid file format. Please upload a valid image file.');
+      } else if (error.code === 'storage/quota-exceeded') {
+        throw new Error('Storage quota exceeded. Please try again later.');
+      } else {
+        throw new Error(`Upload failed: ${error.message || 'Unknown storage error'}`);
+      }
     }
   };
 
